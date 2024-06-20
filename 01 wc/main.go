@@ -37,12 +37,16 @@ func main() {
 			filepath = args[1]
 		}
 	}
+	// get the stat of stdin
 	stat, err := os.Stdin.Stat()
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
+	// Check if input is piped
+	// stat.Mode() & os.ModeCharDevice will be 0 if input is piped
 	if (stat.Mode() & os.ModeCharDevice) == 0 {
+		// Read from stdin
 		file = os.Stdin
 	} else {
 		file, err = os.Open(filepath)
@@ -73,12 +77,17 @@ func main() {
 	fmt.Println(count, filepath)
 }
 
-func getFileInfo(file *os.File) (fileInfo, error) {
+// getFileInfo returns the number of bytes, lines, words and characters in a file
+func getFileInfo(file io.Reader) (fileInfo, error) {
 	var info fileInfo
 	reader := bufio.NewReader(file)
+	// inWord is used to keep track of whether we are in a word or not
 	inWord := false
 	for {
+		// ReadRune reads a single UTF-8 encoded Unicode character and returns the rune and its size in bytes.
+		// e.g the `ض` character is 2 bytes
 		r, sz, err := reader.ReadRune()
+		// If we reach the end of the file, break the loop
 		if err == io.EOF {
 			break
 		}
