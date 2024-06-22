@@ -2,10 +2,13 @@ package main
 
 import (
 	"fmt"
-	"os"
+	"strconv"
 )
 
-// 1- Defining the JSON Lexer tokens
+// =====================================================================================
+// Lexer
+
+// Defining the JSON Lexer tokens
 type TokenType int
 
 const (
@@ -45,7 +48,6 @@ var mapToken = map[TokenType]string{
 	ILLEGAL:  "ILLEGAL",
 }
 
-// 2- Defining the JSON Lexer structure
 type JSONLexer struct {
 	input  string // JSON input
 	start  int    // Start position of the current token
@@ -53,12 +55,10 @@ type JSONLexer struct {
 	tokens []Token
 }
 
-// 3- Defining the JSON Lexer constructor
 func NewJSONLexer(input string) *JSONLexer {
 	return &JSONLexer{input: input, tokens: make([]Token, 0)}
 }
 
-// 4- Defining the JSON Lexer run method
 func (l *JSONLexer) run() {
 	for l.pos < len(l.input) {
 		switch l.input[l.pos] {
@@ -80,36 +80,32 @@ func (l *JSONLexer) run() {
 			l.parseKeyword()
 		case '"':
 			l.parseString()
-		case '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
+		case '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '.':
 			l.parseNumber()
 		default:
 			l.emit(ILLEGAL, string(l.input[l.pos]))
 		}
 	}
-	l.emit(EOF, "EOF")
+	l.emit(EOF, "")
 }
 
-// 5- Defining the JSON Lexer ignore method
 func (l *JSONLexer) ignore() {
 	l.start = l.pos
 	l.pos++
 }
 
-// 6- Defining the JSON Lexer emit method
 func (l *JSONLexer) emit(token TokenType, value string) {
 	l.tokens = append(l.tokens, Token{value: value, tokenType: token})
 	l.start = l.pos
 	l.pos++
 }
 
-// 7- Defining the JSON Lexer parseKeyword method
 func (l *JSONLexer) parseKeyword() {
 	l.pos++
 	for l.pos < len(l.input) && l.input[l.pos] >= 'a' && l.input[l.pos] <= 'z' {
 		l.pos++
 	}
 	keyword := l.input[l.start+1 : l.pos]
-	fmt.Println("Keyword found", keyword, len(keyword), string(l.input[l.pos]))
 	switch keyword {
 	case "true":
 		l.emit(TRUE, "true")
@@ -142,39 +138,158 @@ func (l *JSONLexer) parseNumber() {
 	l.pos--
 }
 
+// =====================================================================================
+// Parser
+
+type JSONParser struct {
+	tokens []Token
+	pos    int
+}
+
+// JSONValue represents bacis JSON types like string, number, boolean, null
+type JSONValue interface{}
+
+// JSONObject represents a JSON object
+type JSONObject map[string]JSONValue
+
+// JSONArray represents a JSON array
+type JSONArray []JSONValue
+
+// Paser Implementation
+
+func NewJSONParser(tokens []Token) *JSONParser {
+	return &JSONParser{tokens: tokens}
+}
+
+func (p *JSONParser) Parse() (JSONValue, error) {
+	return p.parseValue()
+}
+
+// parseValue parses the JSON value
+func (p *JSONParser) parseValue() (JSONValue, error) {
+	token := p.tokens[p.pos]
+	p.pos++
+	switch token.tokenType {
+	case LBRACE:
+		return p.parseObject()
+	case LBRACKET:
+		return p.parseArray()
+	case STRING:
+		return token.value, nil
+	case NUMBER:
+		num, err := strconv.ParseFloat(token.value, 64)
+		if err != nil {
+			return nil, err
+		}
+		return num, nil
+	case TRUE:
+		return true, nil
+	case FALSE:
+		return false, nil
+	case NULL:
+		return nil, nil
+	default:
+		return nil, fmt.Errorf("Unexpected token %s", token.value)
+	}
+}
+
+// parseObject parses the JSON object
+// An object is an unordered set of name/value pairs. An object begins with {left brace and ends with }right brace. Each name is followed by :colon and the name/value pairs are separated by ,comma.
+func (p *JSONParser) parseObject() (JSONObject, error) {
+	obj := JSONObject{}
+	prevComma := false
+	for {
+		// check if the object is empty before we hit the right brace
+		if p.end() {
+			return nil, fmt.Errorf("unexpected end of tokens")
+		}
+		nextToken := p.tokens[p.pos]
+		// check if we hit the right brace
+		if nextToken.tokenType == RBRACE {
+			// check if there is a comma before the right brace
+			if prevComma {
+				return nil, fmt.Errorf("unexpected comma")
+			}
+			p.pos++
+			break
+		}
+		// check if the next token is a string key otherwise return an error
+		if nextToken.tokenType != STRING {
+			return nil, fmt.Errorf("expected string key")
+		}
+		p.pos++
+		if p.end() || p.tokens[p.pos].tokenType != COLON {
+			return nil, fmt.Errorf("expected colon")
+		}
+		p.pos++
+		value, err := p.parseValue()
+		if err != nil {
+			return nil, err
+		}
+		obj[nextToken.value] = value
+		if p.end() {
+			return nil, fmt.Errorf("unexpected end of tokens")
+		}
+		prevComma = false
+		if p.tokens[p.pos].tokenType == COMMA {
+			p.pos++
+			prevComma = true
+		}
+
+	}
+	return obj, nil
+
+}
+func (p *JSONParser) parseArray() (JSONArray, error) {
+	arr := JSONArray{}
+	prevComma := false
+	for {
+		if p.end() {
+			return nil, fmt.Errorf("unexpected end of tokens")
+		}
+		nextToken := p.tokens[p.pos]
+		if nextToken.tokenType == RBRACKET {
+			if prevComma {
+				return nil, fmt.Errorf("unexpected comma")
+			}
+			p.pos++
+			break
+		}
+		value, err := p.parseValue()
+		if err != nil {
+			return nil, err
+		}
+		arr = append(arr, value)
+		if p.end() {
+			return nil, fmt.Errorf("unexpected end of tokens")
+		}
+		prevComma = false
+		if p.tokens[p.pos].tokenType == COMMA {
+			p.pos++
+			prevComma = true
+		}
+	}
+	return arr, nil
+}
+
+func (p *JSONParser) end() bool {
+	return p.pos >= len(p.tokens)
+}
+
 func main() {
-	// input := `{"key": "value", "name": null, "bool": false, "key2": 123, "key3": true, "key4": [1, 2, 3, 4, 5]}`
-	file, err := os.ReadFile("./tests/step3/invalid.json")
-	if err != nil {
-		fmt.Println("Error reading file", err)
-		return
-	}
-	lexer := NewJSONLexer(string(file))
+	// input := `{"key": "value", "name": null, "bool": false, "key2": 123,"arr":[1,2, "islam",{"name":"islam"}], "key3": true, "data":{"name":"islam","age":21}}`
+
+	// file, err := os.ReadFile("./tests/step3/invalid.json")
+	// if err != nil {
+	// 	fmt.Println("Error reading file", err)
+	// 	return
+	// }
+	lexer := NewJSONLexer(`{"key": "value", "s":[1,2,3,]}`)
 	lexer.run()
-	for _, token := range lexer.tokens {
-		fmt.Printf("Token: %s \t Type: %s\n", token.value, mapToken[token.tokenType])
-	}
+	// for _, token := range lexer.tokens {
+	// 	fmt.Printf("Token: %s \t Type: %s\n", token.value, mapToken[token.tokenType])
+	// }
+	parser := NewJSONParser(lexer.tokens)
+	fmt.Println(parser.Parse())
 
-}
-
-// create a generic stack
-type Stack struct {
-	stack []string
-}
-
-func NewStack() *Stack {
-	return &Stack{stack: make([]string, 0)}
-}
-
-func (s *Stack) Push(value string) {
-	s.stack = append(s.stack, value)
-}
-
-func (s *Stack) Pop() string {
-	if len(s.stack) == 0 {
-		return ""
-	}
-	value := s.stack[len(s.stack)-1]
-	s.stack = s.stack[:len(s.stack)-1]
-	return value
 }
