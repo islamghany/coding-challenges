@@ -4,28 +4,38 @@ import (
 	"compression/huffman"
 	"flag"
 	"fmt"
-	"os"
 )
 
 func main() {
 	var filepath string
 	var outputpath string
+	var decode bool
 	flag.StringVar(&filepath, "f", "", "File path")
 	flag.StringVar(&filepath, "file", "", "File path")
-	flag.StringVar(&outputpath, "o", "encoded_text", "Output file path")
+	flag.StringVar(&outputpath, "o", "encoded_text.txt", "Output file path")
+	flag.BoolVar(&decode, "d", false, "Decode")
 	flag.Parse()
 
 	if filepath == "" {
 		fmt.Println("Please provide file path")
 		return
 	}
-	file, err := os.ReadFile(filepath)
-	if err != nil {
-		fmt.Println("Error reading file")
-		return
+
+	if decode {
+		decoder := huffman.NewHuffmanDecoder(filepath, outputpath)
+		err := decoder.Decode()
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+
+	} else {
+		encoder := huffman.NewHuffmanEncoder(filepath, outputpath)
+		err := encoder.Encode()
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
 	}
-	result := huffman.Encode(file)
-	output, _ := os.Create(outputpath)
-	defer output.Close()
-	output.Write(result)
+
 }

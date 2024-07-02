@@ -1,91 +1,135 @@
 package huffman
 
 import (
+	"bufio"
 	"fmt"
-	"strings"
+	"os"
+	"unicode/utf8"
 )
 
-func serializedTree(node *HeapNode) string {
-	if node == nil {
-		return "" // using empty string to represent nil nodes
+const CONTROL_CHAR rune = '⁂'
+const BITS_IN_BYTE = 1024
+
+func wrtieHuffmanTreeToFile(root *Node, w *BitStream) {
+
+	var traverseTree func(node *Node)
+	traverseTree = func(node *Node) {
+		if node == nil {
+			return
+		}
+		if node.isLeaf() {
+			w.WriteBit(One)
+			w.WriteRune(node.Char)
+		} else {
+			w.WriteBit(Zero)
+		}
+		traverseTree(node.Left)
+		traverseTree(node.Right)
 	}
-	if node.Char != "" {
-		return "0" + node.Char + serializedTree(node.Left) + serializedTree(node.Right) // using 0 to represent leaf nodes
-	}
-	return "2" + serializedTree(node.Left) + serializedTree(node.Right) // using 2 to represent internal nodes
+	traverseTree(root)
+	w.WriteRune(CONTROL_CHAR)
 }
 
-// converts a binary string into a slice of bytes. The function takes a single parameter, input, which is the binary string to be converted.
-// It returns a slice of bytes that represents the binary data encoded in the input string.
-// e.g. binaryStringToBytes("0110000101100010") => []byte{0x61, 0x62}
-func binaryStringToBytes(input string) []byte {
-	var result []byte
-	for i := 0; i < len(input); i += 8 {
-		if i+8 > len(input) {
-			break
-		}
-		// get the next 8 bits (1 byte)
-		b := input[i : i+8]
-		var val byte // accumulate the binary value of the substring
-		// convert the binary string to a byte
-		for j := 0; j < 8; j++ {
-			// If the character is '1', the function calculates the corresponding bit value by shifting 1 left by 7-j positions
-			if b[j] == '1' {
-				// where j is the current position within the substring. This effectively converts the binary string representation into its numeric value.
-				// The |= operator is used to perform a bitwise OR operation, accumulating the bit values into val.
-				// e.g. if j= 1, b= "01100001", b[j] = 1, 1 << uint(7-j) = 1 << 6 = 01000000
-				// j= 2, b= "01100001", b[j] = 1, val = 01000000 | 00100000 = 01100000
-				// ...etc
-				val |= 1 << uint(7-j)
-			}
-		}
-		result = append(result, val)
-	}
-	return result
+type HuffmanEncoder struct {
+	filepath   string
+	OutputPath string
+	freq       map[rune]int
 }
 
-func Encode(input []byte) []byte {
-	freq := make(map[string]int)
-	for _, b := range input {
-		freq[string(b)]++
+func NewHuffmanEncoder(filepath string, outputPath string) *HuffmanEncoder {
+	return &HuffmanEncoder{
+		filepath:   filepath,
+		OutputPath: outputPath,
+		freq:       make(map[rune]int),
 	}
+}
+
+func (e *HuffmanEncoder) Encode() error {
+	file, err := os.Open(e.filepath)
+	if err != nil {
+		return fmt.Errorf("Error reading file: %w", err)
+	}
+	defer file.Close()
+	// 1- build the frequency map
+	scanner := bufio.NewScanner(file)
+	// read the file rune by rune
+	scanner.Split(bufio.ScanRunes)
+	for scanner.Scan() {
+		r, _ := utf8.DecodeRuneInString(scanner.Text())
+		e.freq[r]++
+	}
+	// 2- build the huffman tree
 	heap := NewHeap()
-	for char, count := range freq {
-		heap.Insert(NewHeapNode(char, count))
+	for char, count := range e.freq {
+		heap.Insert(NewNode(char, count))
 	}
-	// clear the map
-	freq = make(map[string]int)
 	for heap.Size() > 1 {
 		left := heap.ExtractMin()
 		right := heap.ExtractMin()
-		newNode := NewHeapNode("", left.Count+right.Count)
+		newNode := NewNode(0, left.Count+right.Count)
 		newNode.Left = left
 		newNode.Right = right
 		heap.Insert(newNode)
 	}
 	root := heap.ExtractMin()
-	codes := make(map[string]string)
-	var traverseTree func(node *HeapNode, code string)
-	traverseTree = func(node *HeapNode, code string) {
+	// 3- build the huffman codes
+	codes := make(map[rune]string)
+	var traverseTree func(node *Node, code string)
+	traverseTree = func(node *Node, code string) {
 		if node == nil {
 			return
 		}
-		if node.Char != "" {
+		if node.Char != 0 {
 			codes[node.Char] = code
 		}
 		traverseTree(node.Left, code+"0")
 		traverseTree(node.Right, code+"1")
 	}
 	traverseTree(root, "")
-	serialized := serializedTree(root)
-	var encodedData strings.Builder
-	for _, b := range input {
-		encodedData.WriteString(codes[string(b)])
+	// 4- encode the data into the file
+	output, err := os.Create(e.OutputPath)
+	if err != nil {
+		return fmt.Errorf("Error creating output file: %w", err)
 	}
-	fmt.Println(encodedData.Len())
-	encodedBytes := binaryStringToBytes(encodedData.String())
-	resultBytes := make([]byte, 0, len(serialized)+len(encodedBytes))
-	resultBytes = append(resultBytes, []byte(serialized)...)
-	resultBytes = append(resultBytes, encodedBytes...)
-	return resultBytes
+	defer output.Close()
+	w := NewBitStream(nil, output)
+	wrtieHuffmanTreeToFile(root, w)
+	file.Seek(0, 0)
+	scannerout := bufio.NewScanner(file)
+	scannerout.Split(bufio.ScanRunes)
+	for scannerout.Scan() {
+		r, _ := utf8.DecodeRuneInString(scannerout.Text())
+		code, hasRune := codes[r]
+		if !hasRune {
+			return fmt.Errorf("Rune not found in codes: %v", r)
+		}
+		for _, b := range code {
+			if b == '0' {
+				if err := w.WriteBit(Zero); err != nil {
+					return fmt.Errorf("Error writing bit: %w", err)
+				}
+			} else {
+				if err := w.WriteBit(One); err != nil {
+					return fmt.Errorf("Error writing bit: %w", err)
+				}
+			}
+		}
+	}
+	if err := w.FlushWrite(One); err != nil {
+		return fmt.Errorf("Error flushing write: %w", err)
+	}
+
+	inputInfo, err := file.Stat()
+	if err != nil {
+		return fmt.Errorf("Error getting file info: %w", err)
+	}
+	outputInfo, err := output.Stat()
+	if err != nil {
+		return fmt.Errorf("Error getting file info: %w", err)
+	}
+	inputSizeMB := inputInfo.Size() / BITS_IN_BYTE
+	outputSizeMB := outputInfo.Size() / BITS_IN_BYTE
+	fmt.Printf("Input file size: %v MB\n", inputSizeMB)
+	fmt.Printf("Output file size: %v MB\n", outputSizeMB)
+	return nil
 }
