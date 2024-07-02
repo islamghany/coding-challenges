@@ -5,6 +5,9 @@
 	},
 	{
 		"path": "02 json parser"
+	},
+	{
+		"path": "03 compression"
 	}
 ],
   "settings": {}
