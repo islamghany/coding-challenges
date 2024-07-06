@@ -109,16 +109,18 @@ func (b *BitStream) ReadBit() (Bit, error) {
 	return bit != 0, nil
 }
 
-// ReadRune reads a rune from the bit stream. It returns the rune read and an error, if any.
+// ReadRune reads a rune from the bit stream. It returns the rune (Unicode code point) and an error, if any.
 func (b *BitStream) ReadRune() (rune, error) {
 	// runes are encoded using UTF-8, which means that the first byte of a rune indicates the number of bytes used to encode the rune.
+	// A bytes buffer rb is created to store the bytes of the rune being read.
 	rb := bytes.Buffer{}
+	//enters a loop that continues until a valid rune is read or an error occurs.
 	for {
-		// if the buffer exceeds the maximum size of a UTF-8 rune, the function returnss an error.
+		// If the buffer size exceeds the maximum possible size of a UTF-8 encoded rune (4 bytes), it returns an error.
 		if rb.Len() > utf8.UTFMax {
 			return 0, fmt.Errorf("Invalid rune")
 		}
-		//
+		// attempts to decode a rune from the buffer. If successful, it returns the rune.
 		r, sz := utf8.DecodeRune(rb.Bytes())
 		if r != utf8.RuneError && sz != 0 {
 			return r, nil
@@ -150,6 +152,22 @@ func (b *BitStream) ReadRune() (rune, error) {
 			if err := rb.WriteByte(cb); err != nil {
 				return 0, err
 			}
+			// Here's a visual example to help understand:
+			// Let's say b.bitPos is 3, meaning we've already used 3 bits from the current byte.
+			// Current buffer: 10110000
+			// ^^^----- These 3 bits have been used
+			// New byte read:  11100111
+			// After right shift (b.buffer[0] >> b.bitPos):
+			// 00011100
+			// Combine with cb using OR:
+			// 10110000 (cb)
+			// 00011100 (shifted new byte)
+			// 10111100 (result)
+			// This result contains the 5 unused bits from the previous byte and the first 3 bits from the new byte.
+			// Then, we prepare the buffer for the next operation:
+			// 11100111 (original new byte)
+			// Left shift by 5 (8 - b.bitPos):
+			// 11100000
 		}
 	}
 
