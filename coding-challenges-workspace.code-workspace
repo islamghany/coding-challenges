@@ -1,17 +1,20 @@
 {
   "folders": [
-	{
-		"path": "01 wc"
-	},
-	{
-		"path": "02 json parser"
-	},
-	{
-		"path": "03 compression"
-	},
-	{
-		"path": "04 cut"
-	}
-],
+    {
+      "path": "01 wc"
+    },
+    {
+      "path": "02 json parser"
+    },
+    {
+      "path": "03 compression"
+    },
+    {
+      "path": "04 cut"
+    },
+    {
+      "path": "04 load balancer"
+    }
+  ],
   "settings": {}
 }
