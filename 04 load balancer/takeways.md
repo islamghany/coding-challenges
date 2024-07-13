@@ -112,3 +112,48 @@ http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 fmt.Println("Server is listening on port 8080...")
 http.ListenAndServe(":8080", nil)
 ```
+
+
+## Load Balancer
+
+A load balancer is a case of a reverse proxy. It distributes incoming network traffic across multiple servers. It is responsible for balancing the load between multiple servers. It is responsible for the transmission of data between two devices on the same or different networks.
+
+There are several Algorithms that can be used to distribute the load between servers:
+- Round Robin
+- Least Connections
+- IP Hash
+- Content-Based
+
+### Layer 4 Load Balancer
+
+A Layer 4 load balancer operates at the transport layer. It forwards the traffic based on network information such as IP address and TCP port.
+
+**Pros**:
+- Faster than Layer 7 load balancer.
+- Can handle more connections than Layer 7 load balancer.
+- More secure
+- Works well with UDP and TCP protocols.
+
+**Cons**:
+- Cannot inspect the content of the packets.
+- Cannot make decisions based on the content of the packets.
+- No caching.
+- No SSL termination.
+
+### Layer 7 Load Balancer
+
+A Layer 7 load balancer operates at the application layer. It forwards the traffic based on the content of the packets.
+
+**Pros**:
+- Can inspect the content of the packets.
+- Can make decisions based on the content of the packets.
+- Caching.
+- Great for microservices architecture.
+- Authentication and authorization.
+
+**Cons**:
+- Slower than Layer 4 load balancer.
+- Decryption and encryption overhead.
+- Cannot handle as many connections as Layer 4 load balancer.
+- Needs to buffer the entire request before forwarding it.
+- More complex to configure.
