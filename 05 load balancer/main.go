@@ -3,29 +3,49 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"flag"
 	"fmt"
 	"lb/serversmanager"
+	"lb/serversmanager/algorithms"
 	"log"
 	"net"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
+var (
+	mux sync.Mutex
+)
+
+type config struct {
+	algorithm string
+	timeout   time.Duration
+}
+
 func main() {
-	timeout := time.Second * 5
+	var cfg config
+	flag.StringVar(&cfg.algorithm, "algorithm", "round_robin", "Load balancing algorithm")
+	flag.DurationVar(&cfg.timeout, "timeout", time.Second*5, "Server timeout")
+	flag.Parse()
+	// Check if the algorithm is available
+	if err := algorithms.IsAlgorithmAvailable(cfg.algorithm); err != nil {
+		log.Fatalf("Error: %s", err)
+	}
+	// Create server pool
 	conf := []serversmanager.Config{
 		{
 			Url:     "localhost:8080",
-			Timeout: timeout,
+			Timeout: cfg.timeout,
 		},
 		{
 			Url:     "localhost:8081",
-			Timeout: timeout,
+			Timeout: cfg.timeout,
 		},
 		{
 			Url:     "localhost:8082",
-			Timeout: timeout,
+			Timeout: cfg.timeout,
 		},
 	}
 	servers := make([]*serversmanager.ServerManager, 0)
@@ -34,7 +54,7 @@ func main() {
 	}
 	serversPool := serversmanager.NewServerPool(
 		servers, 3)
-
+	// Start the load balancer server
 	ln, err := net.Listen("tcp", ":4000")
 	if err != nil {
 		fmt.Println(err)
@@ -42,18 +62,31 @@ func main() {
 	}
 	fmt.Println("LB Listening on localhost:4000")
 	defer ln.Close()
+	// Bootup the servers
 	serversPool.BootupServers()
+	// Load balancer algorithm selection
+	var lbalgo algorithms.LoadBalancerAlgorithm
+	switch cfg.algorithm {
+	case algorithms.ROUNDROBIN:
+		lbalgo = algorithms.NewRoundRobin()
+	case algorithms.LEASTCONNECTION:
+		lbalgo = algorithms.NewLeastConnection()
+	default:
+		log.Fatalf("Algorithm not implemented")
+	}
+	// Accept incoming connections
 	for {
 		conn, err := ln.Accept()
 		if err != nil {
 			fmt.Println(err)
 			continue
 		}
-		go handler(conn, serversPool)
+		go handler(conn, serversPool, lbalgo)
 	}
 }
 
-func handler(conn net.Conn, serversPool *serversmanager.ServerPool) {
+func handler(conn net.Conn, serversPool *serversmanager.ServerPool, lbalgo algorithms.LoadBalancerAlgorithm) {
+
 	fmt.Println("Received request from", conn.RemoteAddr())
 	defer conn.Close()
 
@@ -63,9 +96,10 @@ func handler(conn net.Conn, serversPool *serversmanager.ServerPool) {
 		fmt.Println(err)
 		return
 	}
-	fmt.Printf("Client request is:\n%s\n", clientRes)
-	server := serversPool.GetNextServer()
-	if server == nil {
+	servers := serversPool.GetAllActiveServers()
+	fmt.Printf("Active servers: %d\n", len(servers))
+
+	if len(servers) == 0 {
 		fmt.Println("No server available")
 		// wrtie a response to the client
 		buf := bytes.Buffer{}
@@ -76,24 +110,29 @@ func handler(conn net.Conn, serversPool *serversmanager.ServerPool) {
 		conn.Close()
 		return
 	}
-
+	server := lbalgo.Next(servers)
 	backConn, err := server.Dial(3)
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
-	defer backConn.Close()
+	// startTime := time.Now()
+	server.IncrementTotalRequests()
+	defer func() {
+		server.DecrementTotalRequests()
+		backConn.Close()
+	}()
 	// forward the request to the server
 	backConn.Write([]byte(clientRes))
 	// read the response from the server
 	// and forward it to the client
 	backRes, err := readFromConn(backConn)
-	fmt.Printf("backRes: \n%s\n", backRes)
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
 	conn.Write([]byte(backRes))
+	fmt.Println("Served by", server.GeURL())
 
 }
 
