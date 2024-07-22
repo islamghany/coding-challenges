@@ -14,6 +14,9 @@
     },
     {
       "path": "05 load balancer"
+    },
+    {
+      "path": "06 sort"
     }
   ],
   "settings": {}
