@@ -42,7 +42,7 @@ func TestStack(t *testing.T) {
 func TestCalculator(t *testing.T) {
 	testCases := []struct {
 		input  string
-		output int
+		output float64
 	}{
 		{"1 + 3 * (50) - 2", 149},
 		{"1 + 3 * (50 - 2)", 145},
@@ -59,13 +59,25 @@ func TestCalculator(t *testing.T) {
 		{"0011", 11},
 		{"0011+0011", 22},
 		{"-10", 0},
+		// sin, cos, tan, sqrt
+		{"s(90)", 0.893997},
+		{"c(0)", 1},
+		{"t(45)", 1.619775},
+		{"q(16)", 4},
+		// power
+		{"2^3", 8},
+		{"2^3^2", 512},
+		{"2^3^2^2", 65536},
 	}
 	calc := calculator.NewCalculator()
-	for idx, tc := range testCases {
+	for _, tc := range testCases {
 		r, _ := calc.Evaluate(tc.input)
-		if r != tc.output {
-			t.Errorf("%d Expected %d but got %d", idx, tc.output, r)
+		// float comparison
+
+		if r-tc.output > 0.0001 {
+			t.Errorf("Expected %f but got %f", tc.output, r)
 		}
+
 	}
 
 }

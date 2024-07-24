@@ -14,7 +14,7 @@ func NewCalculator() *Calculator {
 	return &Calculator{}
 }
 
-func (calc *Calculator) Evaluate(exp string) (int, error) {
+func (calc *Calculator) Evaluate(exp string) (float64, error) {
 	calc.exp = exp
 	rpn := calc.generatePostfixNotation()
 	return calc.evaluatePostfixNotation(rpn)
@@ -30,7 +30,7 @@ func (calc *Calculator) generatePostfixNotation() []string {
 		case '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
 			output.Push(string(c))
 			isNum = true
-		case '+', '-', '*', '/', '%', '^':
+		case '+', '-', '*', '/', '%', '^', 's', 'c', 't', 'q':
 			calc.handleOperator(string(c), output, operators)
 			break
 		case '(':
@@ -77,6 +77,8 @@ func (calc *Calculator) precedence(op string) int {
 		return 2
 	case "^":
 		return 3
+	case "s", "c", "t", "q":
+		return 4
 	}
 	return 0
 }
@@ -91,9 +93,8 @@ func (calc *Calculator) handleClosingBracket(output, operators *Stack[string]) {
 	}
 }
 
-func (calc *Calculator) evaluatePostfixNotation(rpn []string) (int, error) {
-	fmt.Println(rpn)
-	stack := NewStack[int](10)
+func (calc *Calculator) evaluatePostfixNotation(rpn []string) (float64, error) {
+	stack := NewStack[float64](10)
 	for _, tok := range rpn {
 		switch tok {
 		case "+", "-", "*", "/", "%", "^":
@@ -104,8 +105,15 @@ func (calc *Calculator) evaluatePostfixNotation(rpn []string) (int, error) {
 			op1 := stack.Pop()
 			result := calc.evaluate(op1, op2, tok)
 			stack.Push(result)
+		case "s", "c", "t", "q":
+			if stack.length < 1 {
+				return 0, fmt.Errorf("Invalid expression")
+			}
+			op1 := stack.Pop()
+			result := calc.evaluate(op1, 0, tok)
+			stack.Push(result)
 		default:
-			val, err := strconv.Atoi(tok)
+			val, err := strconv.ParseFloat(tok, 64)
 			if err != nil {
 				return 0, err
 			}
@@ -119,7 +127,7 @@ func (calc *Calculator) evaluatePostfixNotation(rpn []string) (int, error) {
 	return stack.Pop(), nil
 }
 
-func (calc *Calculator) evaluate(op1, op2 int, op string) int {
+func (calc *Calculator) evaluate(op1, op2 float64, op string) float64 {
 	switch op {
 	case "+":
 		return op1 + op2
@@ -130,9 +138,17 @@ func (calc *Calculator) evaluate(op1, op2 int, op string) int {
 	case "/":
 		return op1 / op2
 	case "%":
-		return op1 % op2
+		return float64(int(op1) % int(op2))
 	case "^":
-		return int(math.Pow(float64(op1), float64(op2)))
+		return math.Pow(op1, op2)
+	case "s":
+		return math.Sin(op1)
+	case "c":
+		return math.Cos(op1)
+	case "t":
+		return math.Tan(op1)
+	case "q":
+		return math.Sqrt(op1)
 	}
 	return 0
 }
