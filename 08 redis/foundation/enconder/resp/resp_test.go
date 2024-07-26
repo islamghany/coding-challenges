@@ -150,3 +150,91 @@ func TestDeserialize(t *testing.T) {
 		})
 	}
 }
+
+func TestSerialization(t *testing.T) {
+	testCases := []struct {
+		name     string
+		data     *RESPData
+		expected []byte
+		err      error
+	}{
+		{
+			name: "Simple String",
+			data: &RESPData{
+				Data: "OK",
+				Type: SimpleString,
+			},
+			expected: []byte("+OK\r\n"),
+		},
+		{
+			name: "null",
+			data: &RESPData{
+				Data: nil,
+				Type: BulkString,
+			},
+			expected: []byte("$-1\r\n"),
+		},
+		{
+			name: "Array of len 1 of bulk string",
+			data: &RESPData{
+				Data: []RESPData{{Data: "ping", Type: BulkString}},
+				Type: Array,
+			},
+			expected: []byte("*1\r\n$4\r\nping\r\n"),
+		},
+
+		{
+			name:     "Array of len 2 of mix string",
+			expected: []byte("*2\r\n$4\r\necho\r\n$11\r\nhello world\r\n"),
+			data: &RESPData{
+				Data: []RESPData{{Data: "echo", Type: BulkString}, {Data: "hello world", Type: BulkString}},
+				Type: Array,
+			},
+		},
+		{
+			name:     "Array of get",
+			expected: []byte("*2\r\n$3\r\nget\r\n$3\r\nkey\r\n"),
+			data: &RESPData{
+				Data: []RESPData{{Data: "get", Type: BulkString}, {Data: "key", Type: BulkString}},
+				Type: Array,
+			},
+		},
+		{
+			name:     "Error message",
+			expected: []byte("-Error message\r\n"),
+			data: &RESPData{
+				Data: "Error message",
+				Type: Error,
+			},
+		},
+		{
+			name:     "empty bulk string",
+			expected: []byte("$0\r\n\r\n"),
+			data: &RESPData{
+				Data: "",
+				Type: BulkString,
+			},
+		},
+		{
+			name:     "Integer",
+			expected: []byte(":123\r\n"),
+			data: &RESPData{
+				Data: 123,
+				Type: Integer,
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			result, err := Serialize(tc.data)
+			if err != nil {
+				t.Errorf("unexpected error: %v", err)
+			}
+
+			if !bytes.Equal(result, tc.expected) {
+				t.Errorf("expected %s, got %s", tc.expected, result)
+			}
+		})
+	}
+}
