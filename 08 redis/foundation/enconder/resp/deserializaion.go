@@ -209,3 +209,10 @@ func NewArray(elems []string) []RESPData {
 
 	return respArray
 }
+
+func NewNil() RESPData {
+	return RESPData{
+		Data: nil,
+		Type: BulkString,
+	}
+}

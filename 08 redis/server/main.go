@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"redis/foundation/enconder/resp"
+	"redis/foundation/store"
 	"redis/server/commands"
 	"strings"
 )
@@ -16,17 +17,21 @@ func main() {
 		fmt.Println(err)
 		return
 	}
+	// creating store
+	store := store.NewStore()
+	// creating commander
+	commander := commands.NewCommander(store)
 	for {
 		conn, err := ln.Accept()
 		if err != nil {
 			fmt.Println(err)
 			continue
 		}
-		go handleConnection(conn)
+		go handleConnection(conn, commander)
 	}
 }
 
-func handleConnection(conn net.Conn) {
+func handleConnection(conn net.Conn, commander *commands.Commander) {
 	defer func() {
 		fmt.Println("closing the connection")
 		conn.Close()
@@ -53,9 +58,13 @@ func handleConnection(conn net.Conn) {
 
 	switch cmd {
 	case "ping":
-		res = commands.Ping(dataArr)
+		res = commander.Ping(dataArr)
 	case "echo":
-		res = commands.Echo(dataArr)
+		res = commander.Echo(dataArr)
+	case "set":
+		res = commander.Set(dataArr)
+	case "get":
+		res = commander.Get(dataArr)
 	default:
 		res = errResp
 	}
@@ -64,11 +73,18 @@ func handleConnection(conn net.Conn) {
 }
 
 func readFromConnection(conn net.Conn) []byte {
-	buf := make([]byte, 1024)
+	var buf bytes.Buffer
+	for {
+		temp := make([]byte, 1024)
 
-	n, err := conn.Read(buf)
-	if err != nil {
-		return nil
+		n, err := conn.Read(temp)
+		if err != nil {
+			break
+		}
+		buf.Write(temp[0:n])
+		if n < 1024 {
+			break
+		}
 	}
-	return buf[0:n]
+	return buf.Bytes()
 }

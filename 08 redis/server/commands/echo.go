@@ -2,7 +2,7 @@ package commands
 
 import "redis/foundation/enconder/resp"
 
-func Echo(repsArray []resp.RESPData) resp.RESPData {
+func (cmdr *Commander) Echo(repsArray []resp.RESPData) resp.RESPData {
 	if len(repsArray) < 2 {
 		return resp.NewError(InvalidArguments)
 	}
