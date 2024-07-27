@@ -172,3 +172,40 @@ func readArray(reader *bufio.Reader) (*RESPData, error) {
 	}, nil
 
 }
+
+func NewError(msg string) RESPData {
+	return RESPData{
+		Data: msg,
+		Type: Error,
+	}
+}
+func NewSimpleString(msg string) RESPData {
+	return RESPData{
+		Data: msg,
+		Type: SimpleString,
+	}
+}
+
+func NewBulkString(msg string) RESPData {
+	return RESPData{
+		Data: msg,
+		Type: BulkString,
+	}
+}
+
+func NewInteger(num string) RESPData {
+	return RESPData{
+		Data: num,
+		Type: Integer,
+	}
+}
+
+func NewArray(elems []string) []RESPData {
+	length := len(elems)
+	respArray := make([]RESPData, length)
+	for i := 0; i < length; i++ {
+		respArray[i] = NewBulkString(elems[i])
+	}
+
+	return respArray
+}
