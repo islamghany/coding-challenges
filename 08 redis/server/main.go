@@ -9,6 +9,7 @@ import (
 	"redis/foundation/store"
 	"redis/server/commands"
 	"strings"
+	"time"
 )
 
 func main() {
@@ -32,8 +33,8 @@ func main() {
 }
 
 func handleConnection(conn net.Conn, commander *commands.Commander) {
+	conn.SetReadDeadline(time.Now().Add(5 * time.Minute)) // Adjust the timeout as needed
 	defer func() {
-		fmt.Println("closing the connection")
 		conn.Close()
 	}()
 	// extract the data from the connection as array of bytes
@@ -68,6 +69,7 @@ func handleConnection(conn net.Conn, commander *commands.Commander) {
 	default:
 		res = errResp
 	}
+	fmt.Printf("response: %v\n", res)
 	ret, err := resp.Serialize(&res)
 	conn.Write(ret)
 }

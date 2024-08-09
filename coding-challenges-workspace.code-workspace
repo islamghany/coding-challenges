@@ -20,6 +20,9 @@
     },
     {
       "path": "07 calc"
+    },
+    {
+      "path": "08 redis"
     }
   ],
   "settings": {}
