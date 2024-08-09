@@ -56,7 +56,7 @@ func handleConnection(conn net.Conn, commander *commands.Commander) {
 	}
 	cmd := strings.ToLower(dataArr[0].Data.(string))
 	var res resp.RESPData
-
+	fmt.Printf("command: %v\n", cmd)
 	switch cmd {
 	case "ping":
 		res = commander.Ping(dataArr)
@@ -66,6 +66,16 @@ func handleConnection(conn net.Conn, commander *commands.Commander) {
 		res = commander.Set(dataArr)
 	case "get":
 		res = commander.Get(dataArr)
+	case "exists":
+		res = commander.Exists(dataArr)
+	case "del":
+		res = commander.Del(dataArr)
+	case "incr":
+		res = commander.IncrBy(dataArr, 1)
+	case "decr":
+		res = commander.IncrBy(dataArr, -1)
+	case "save":
+		commander.Flush()
 	default:
 		res = errResp
 	}

@@ -193,7 +193,7 @@ func NewBulkString(msg string) RESPData {
 	}
 }
 
-func NewInteger(num string) RESPData {
+func NewInteger(num int) RESPData {
 	return RESPData{
 		Data: num,
 		Type: Integer,

@@ -56,6 +56,7 @@ func getExpiryOptions(repsArray []resp.RESPData) ([]store.Option, error) {
 	return opts, nil
 }
 
+// Set command set the value at key, with optional expiration.
 func (cmdr *Commander) Set(repsArray []resp.RESPData) resp.RESPData {
 	if len(repsArray) < 3 {
 		return resp.NewError(InvalidArguments)
@@ -74,6 +75,7 @@ func (cmdr *Commander) Set(repsArray []resp.RESPData) resp.RESPData {
 	return resp.NewSimpleString("OK")
 }
 
+// Get returns the value of the key.
 func (cmdr *Commander) Get(repsArray []resp.RESPData) resp.RESPData {
 	if len(repsArray) < 2 {
 		return resp.NewError(InvalidArguments)
@@ -88,4 +90,65 @@ func (cmdr *Commander) Get(repsArray []resp.RESPData) resp.RESPData {
 	}
 
 	return resp.NewBulkString(value)
+}
+
+// Exists check if the one or more keys exist, returns the number of keys that exist.
+func (cmdr *Commander) Exists(repsArray []resp.RESPData) resp.RESPData {
+	if len(repsArray) < 2 {
+		return resp.NewError(InvalidArguments)
+	}
+	counts := 0
+	for i := 1; i < len(repsArray); i++ {
+		key, ok := repsArray[i].Data.(string)
+		if !ok {
+			return resp.NewError(InvalidArguments)
+		}
+		exists := cmdr.Store.Set.Exists(key)
+		if exists {
+			counts++
+		}
+	}
+
+	return resp.NewInteger(counts)
+}
+
+// Del deletes one or more keys and returns the number of keys that were removed.
+func (cmdr *Commander) Del(repsArray []resp.RESPData) resp.RESPData {
+	if len(repsArray) < 2 {
+		return resp.NewError(InvalidArguments)
+	}
+	counts := 0
+	for i := 1; i < len(repsArray); i++ {
+		key, ok := repsArray[i].Data.(string)
+		if !ok {
+			return resp.NewError(InvalidArguments)
+		}
+		exists := cmdr.Store.Set.Remove(key)
+		if exists {
+			counts++
+		}
+	}
+
+	return resp.NewInteger(counts)
+}
+
+// Incr increments the number stored at key by one.
+// if the value does't exists it set with 0, and if the value is in the wrong type an error will be returned
+func (cmdr *Commander) IncrBy(repsArray []resp.RESPData, addition int) resp.RESPData {
+	if len(repsArray) < 2 {
+		return resp.NewError(InvalidArguments)
+	}
+	key := repsArray[1].Data.(string)
+	value, ok := cmdr.Store.Set.Get(key)
+	if !ok {
+		cmdr.Store.Set.Add(key, strconv.Itoa(addition))
+		return resp.NewInteger(addition)
+	}
+	num, err := strconv.Atoi(value)
+	if err != nil {
+		return resp.NewError(WrongType)
+	}
+	num += addition
+	cmdr.Store.Set.Add(key, strconv.Itoa(num))
+	return resp.NewInteger(num)
 }

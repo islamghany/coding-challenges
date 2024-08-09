@@ -1,46 +1,19 @@
 package store
 
 import (
+	"encoding/json"
+	"fmt"
+	"os"
 	"sync"
 	"time"
 )
 
-type ExpireOptions struct {
-	EX   time.Time // expire time in seconds
-	PX   time.Time // expire time in milliseconds
-	EXAT time.Time // expire timestamp-seconds at the specified time
-	PXAT time.Time // expire tmestamp-milliseconds  at the specified time in milliseconds
-}
 type DataItem struct {
 	Value string
 	ExpireOptions
 }
 
 type Option func(*DataItem)
-
-func WithEX(ex time.Duration) Option {
-	return func(d *DataItem) {
-		d.EX = time.Now().Add(ex)
-	}
-}
-
-func WithPX(px time.Duration) Option {
-	return func(d *DataItem) {
-		d.PX = time.Now().Add(px)
-	}
-}
-
-func WithEXAT(exat time.Time) Option {
-	return func(d *DataItem) {
-		d.EXAT = exat
-	}
-}
-
-func WithPXAT(pxat time.Time) Option {
-	return func(d *DataItem) {
-		d.PXAT = pxat
-	}
-}
 
 func NewDataItem(value string, opts ...Option) DataItem {
 	item := DataItem{
@@ -77,36 +50,52 @@ func (s *Set) Add(key, value string, opts ...Option) {
 
 func (s *Set) Get(key string) (string, bool) {
 	s.mutex.RLock()
-	defer s.mutex.RUnlock()
 	value, ok := s.data[key]
+	s.mutex.RUnlock()
+	if !ok {
+		return "", false
+	}
 	// A key is passively expired when a client tries to access it and the key is timed out.
 	expired := s.CheckExpiry(&value)
 	if expired {
+		s.mutex.Lock()
 		delete(s.data, key)
+		s.mutex.Unlock()
 		return "", false
 	}
 	return value.Value, ok
 }
 
-func (s *Set) Remove(key string) {
+func (s *Set) Remove(key string) bool {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
+	_, ok := s.data[key]
+	if !ok {
+		return false
+	}
 	delete(s.data, key)
+	return true
+}
+
+func (s *Set) Exists(key string) bool {
+	_, ok := s.Get(key)
+	return ok
 }
 
 // CheckExpiry checks if the key is expired
 func (s *Set) CheckExpiry(value *DataItem) bool {
+	now := time.Now()
 	// the presence of EXAT or PXAT will override the EX or PX
-	if !value.EXAT.IsZero() && time.Now().After(value.EXAT) {
+	if !value.EXAT.IsZero() && now.After(value.EXAT) {
 		return true
 	}
-	if !value.PXAT.IsZero() && time.Now().After(value.PXAT) {
+	if !value.PXAT.IsZero() && now.After(value.PXAT) {
 		return true
 	}
-	if !value.EX.IsZero() && time.Now().After(value.EX) {
+	if !value.EX.IsZero() && now.After(value.EX) {
 		return true
 	}
-	if !value.PX.IsZero() && time.Now().After(value.PX) {
+	if !value.PX.IsZero() && now.After(value.PX) {
 		return true
 	}
 	return false
@@ -117,10 +106,42 @@ func (s *Set) CheckExpiry(value *DataItem) bool {
 func (s *Set) periodicCheckExpiry() {
 	for {
 		time.Sleep(5 * time.Second)
+		s.mutex.Lock()
 		for k, v := range s.data {
 			if s.CheckExpiry(&v) {
-				s.Remove(k)
+				delete(s.data, k)
 			}
 		}
+		s.mutex.Unlock()
 	}
+}
+
+// Flush save the data to the disk
+func (s *Set) Flush() error {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+	f, err := os.Create("./set.json")
+	if err != nil {
+		fmt.Println(err)
+		return err
+	}
+	defer f.Close()
+	// save the data to the disk
+	enc := json.NewEncoder(f)
+	return enc.Encode(s.data)
+}
+
+// Load the data from the disk
+func (s *Set) Load() error {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+	f, err := os.Open("./set.json")
+	if err != nil {
+		fmt.Println(err)
+		return err
+	}
+	defer f.Close()
+	// load the data from the disk
+	dec := json.NewDecoder(f)
+	return dec.Decode(&s.data)
 }
