@@ -23,6 +23,9 @@
     },
     {
       "path": "08 redis"
+    },
+    {
+      "path": "09 grep"
     }
   ],
   "settings": {}
