@@ -26,6 +26,9 @@
     },
     {
       "path": "09 grep"
+    },
+    {
+      "path": "10 uniq"
     }
   ],
   "settings": {}
