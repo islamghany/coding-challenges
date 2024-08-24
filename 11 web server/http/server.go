@@ -2,64 +2,35 @@ package http
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"net"
 	"strconv"
 	"strings"
+	"webserver/http/request"
+	"webserver/http/response"
+	"webserver/http/router"
 )
 
 type ServerConfig struct {
-	Addr string
+	Addr   string
+	Router *router.Router
 }
 
 type Server struct {
 	addr string
 	// Handler  Handler
 	listener net.Listener
-	routes   Routes
-}
-
-type Routes struct {
-	routes map[string]Handler
-}
-
-type Request struct {
-	Method        string
-	Path          string
-	Header        map[string]string
-	Body          []byte
-	Proto         string
-	ContentLength int
-}
-
-func (w Response) Write(b []byte) (int, error) {
-	data := EncodeResponse(b, w.Status, w.StatusText, w.Header)
-	return w.conn.Write(data)
-}
-
-type Response struct {
-	Header     map[string]string
-	conn       net.Conn
-	Status     int
-	StatusText string
-}
-
-type Handler interface {
-	ServeHTTP(Response, *Request)
-}
-
-type HandlerFunc func(Response, *Request)
-
-func (f HandlerFunc) ServeHTTP(w Response, r *Request) {
-	f(w, r)
+	routes   *router.Router
 }
 
 func NewServer(cfg ServerConfig) *Server {
+	if cfg.Router == nil {
+		cfg.Router = router.NewRouter()
+	}
 	return &Server{
-		addr: cfg.Addr,
-		routes: Routes{
-			routes: make(map[string]Handler),
-		},
+		addr:   cfg.Addr,
+		routes: cfg.Router,
 	}
 }
 
@@ -88,25 +59,20 @@ func (s *Server) handleConnection(conn net.Conn) {
 	}
 	fmt.Printf("Request Body: %+v\n", string(req.Body))
 	// 2- create response
-	res := Response{
-		conn:       conn,
+	res := response.Response{
+		Conn:       conn,
 		Header:     make(map[string]string),
 		Status:     200,
 		StatusText: "OK",
 	}
-	// 3- find route
-	route, ok := s.routes.routes["/v1/hello"]
-	if !ok {
-		// 404
-	}
-
-	// 4- call handler
-	route.ServeHTTP(res, req)
+	// serve the request
+	s.routes.ServeHTTP(res, req)
 }
 
-func (s *Server) handleReadRequest(conn net.Conn) (*Request, error) {
-	req := &Request{
-		Header: make(map[string]string),
+func (s *Server) handleReadRequest(conn net.Conn) (*request.Request, error) {
+	req := &request.Request{
+		Header:  make(map[string]string),
+		Context: context.Background(),
 	}
 	reader := bufio.NewReader(conn)
 	// 1- read the request line
@@ -158,20 +124,4 @@ func (s *Server) handleReadRequest(conn net.Conn) (*Request, error) {
 
 	fmt.Printf("Request: %+v\n", req)
 	return req, nil
-}
-
-func (s *Server) Get(path string, h HandlerFunc) {
-	s.routes.routes[path] = h
-}
-
-func EncodeResponse(body []byte, status int, statusText string, header map[string]string) []byte {
-	var res strings.Builder
-	res.WriteString(fmt.Sprintf("HTTP/1.1 %d %s\r\n", status, statusText))
-	for k, v := range header {
-		res.WriteString(fmt.Sprintf("%s: %s\r\n", k, v))
-	}
-	res.WriteString(fmt.Sprintf("Content-Length: %d\r\n", len(body)))
-	res.WriteString("\r\n")
-	res.Write(body)
-	return []byte(res.String())
 }
