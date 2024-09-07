@@ -75,6 +75,36 @@ func main() {
 		http.Redirect(w, r, original, http.StatusMovedPermanently)
 	})
 
+	// DELETE /shorten/{shortened}
+	mux.HandleFunc("DELETE /shorten/{shortened}", func(w http.ResponseWriter, r *http.Request) {
+		// Get the shortened URL from the request
+		shortened := r.URL.Path[1:]
+		// Query the database for the original URL
+		var original string
+		err := db.QueryRow("SELECT url FROM urls_shortened WHERE shortened = ?", shortened).Scan(&original)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusNotFound)
+			return
+		}
+		// Delete the URL from the database
+		_, err = db.Exec("DELETE FROM urls_shortened WHERE shortened = ?", shortened)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		// Return a success message
+		w.Header().Set("Content-Type", "application/json")
+		data := map[string]string{"message": "URL deleted successfully"}
+		jsonData, err := json.MarshalIndent(envelope{"data": data}, "", "\t")
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		jsonData = append(jsonData, '\n')
+		w.WriteHeader(http.StatusOK)
+		w.Write(jsonData)
+	})
+
 	srv := &http.Server{
 		Addr:    ":8080",
 		Handler: CorsMiddleware(mux),

@@ -109,3 +109,57 @@ Checksum hash functions are used to detect errors in data transmission. They are
 3. Fletcher's Checksum: It produces a 16-bit or 32-bit hash value and is used for error detection in data transmission.
 
 ### 3. Encryption
+
+Encryption is used to transform data into a format that is unreadable format to prevent unauthorized access. It is reversible, meaning the encrypted data can be decrypted back to its original form using a decryption key.
+
+#### Key Concepts of Encryption
+
+1. Plaintext: The original data that is to be encrypted.
+2. Ciphertext: The encrypted data that is produced after encryption.
+3. Encryption Algorithm (Cipher suite): The algorithm used to encrypt the data.
+4. Decryption Algorithm: The algorithm used to decrypt the data.
+5. Encryption Key: The key used to encrypt the data.
+6. Decryption Key: The key used to turn ciphertext back into plaintext. Depending on the encryption method, this can be the same as the encryption key (symmetric encryption) or different (asymmetric encryption).
+
+#### Types of Encryption
+
+##### 1. Symmetric Encryption:
+
+In symmetric encryption, the same key is used for both encryption and decryption. The key is shared between the sender and the receiver.
+
+**Advantages:**
+
+1. Fast: Symmetric encryption is faster than asymmetric encryption.
+2. Simple: Symmetric encryption is simpler than asymmetric encryption.
+
+**Disadvantages:**
+
+1. Key Distribution: The key must be securely shared between the sender and the receiver.
+2. Key Management: The key must be managed securely to prevent unauthorized access.
+
+**Examples:**
+
+- AES (Advanced Encryption Standard): It is a symmetric encryption algorithm that is widely used for data encryption. It supports key sizes of 128, 192, and 256 bits.
+- DES (Data Encryption Standard): It is a symmetric encryption algorithm that is no longer considered secure due to its small key size (56 bits).
+- 3DES (Triple Data Encryption Standard): It is a symmetric encryption algorithm that applies DES three times to increase the key size to 168 bits.
+- chacha20: It is a symmetric encryption algorithm that is designed to be secure and efficient (used in PASETO an alternative to JWT).
+
+##### 2. Asymmetric Encryption:
+
+In asymmetric encryption, two keys are used: a public key for encryption and a private key for decryption. The public key is shared with everyone, while the private key is kept secret.
+
+**Advantages:**
+
+1. Key Distribution: The public key can be shared with everyone, while the private key is kept secret.
+2. Key Management: The private key is kept secret and is not shared with anyone.
+
+**Disadvantages:**
+
+1. Slow: Asymmetric encryption is slower than symmetric encryption.
+2. Complexity: Asymmetric encryption is more complex than symmetric encryption.
+
+**Examples:**
+
+- RSA (Rivest-Shamir-Adleman): It is an asymmetric encryption algorithm that is widely used for secure communication, digital signatures, and data encryption.
+- ECC (Elliptic Curve Cryptography): It is an asymmetric encryption algorithm that is based on the algebraic structure of elliptic curves. It is used in applications where key size and speed are important.
+- Diffie-Hellman Key Exchange: It is an asymmetric encryption algorithm that is used to securely exchange keys over an insecure channel.
