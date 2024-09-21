@@ -1,41 +1,78 @@
 {
   "folders": [
     {
+      "name": ".vscode",
+      "path": ".vscode"
+    },
+    {
+      "name": "01 wc",
       "path": "01 wc"
     },
     {
+      "name": "02 json parser",
       "path": "02 json parser"
     },
     {
+      "name": "03 compression",
       "path": "03 compression"
     },
     {
+      "name": "04 cut",
       "path": "04 cut"
     },
     {
+      "name": "05 load balancer",
       "path": "05 load balancer"
     },
     {
+      "name": "06 sort",
       "path": "06 sort"
     },
     {
+      "name": "07 calc",
       "path": "07 calc"
     },
     {
+      "name": "08 redis",
       "path": "08 redis"
     },
     {
+      "name": "09 grep",
       "path": "09 grep"
     },
     {
+      "name": "10 uniq",
       "path": "10 uniq"
     },
     {
+      "name": "11 web server",
       "path": "11 web server"
     },
     {
+      "name": "12 url shortener",
       "path": "12 url shortener"
+    },
+    {
+      "name": "13 diff",
+      "path": "13 diff"
     }
   ],
-  "settings": {}
+  "settings": {
+    "editor.fontFamily": "'MonoLisa Variable', MonoLisa, 'Dank Mono', 'Droid Sans Mono',  'monospace', monospace",
+    "editor.fontWeight": "500",
+    "editor.fontVariations": "'wght' 400",
+    "editor.lineHeight": 0,
+    "editor.fontLigatures": "'calt' off, 'liga' on, 'zero' on, 'ss03' on, 'ss06' on, 'ss03' on , 'ss02' on",
+    "editor.tokenColorCustomizations": {
+      "textMateRules": [
+        {
+          "scope": "comment, keyword",
+          "settings": {
+            "fontStyle": "italic"
+          }
+        }
+      ]
+    },
+    "editor.fontSize": 14
+  }
 }
