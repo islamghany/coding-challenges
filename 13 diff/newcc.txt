@@ -1,0 +1,7 @@
+Helping you become a better software engineer through coding challenges that build real applications.
+sdfsdf
+sdjfdfj
+I share a weekly coding challenge aimed at helping software engineers level up their skills through deliberate practice.
+These are challenges that I’ve used or am using as exercises to learn a new programming language or technology.
+asjkdhgsdhjgsdsg
+Each challenge will have you writing a full application or tool. Most of which will be based on real world tools and utilities.
