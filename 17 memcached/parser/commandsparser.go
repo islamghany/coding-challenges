@@ -15,6 +15,8 @@ const (
 	SetCommand    CommandName = "set"
 	GetCommand    CommandName = "get"
 	DeleteCommand CommandName = "delete"
+	ExitCommand   CommandName = "exit"
+	EndCommand    CommandName = "end"
 )
 
 var (
@@ -61,6 +63,8 @@ func (cp *Parser) Parse(reader io.Reader) (*Command, error) {
 		return cp.parseGet(fields)
 	case DeleteCommand:
 		return cp.parseDelete(fields)
+	case ExitCommand, EndCommand:
+		return cmd, nil
 	default:
 		return nil, fmt.Errorf("Unknown command")
 	}
