@@ -55,6 +55,18 @@
     {
       "name": "13 diff",
       "path": "13 diff"
+    },
+    {
+      "path": "14 shell"
+    },
+    {
+      "path": "17 memcached"
+    },
+    {
+      "path": "22 dns resolver"
+    },
+    {
+      "path": "23 traceroute"
     }
   ],
   "settings": {

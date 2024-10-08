@@ -17,3 +17,7 @@ this repository contains my solutions to the coding challenges from [codingchall
 - [x] [Build Your Own Web Server](https://codingchallenges.fyi/challenges/challenge-webserver)
 - [x] [Build Your Own URL Shortener](https://codingchallenges.fyi/challenges/challenge-url-shortener)
 - [x] [Build Your Own diff Tool](https://codingchallenges.fyi/challenges/challenge-diff)
+- [x] [Build Your Own Shell](https://codingchallenges.fyi/challenges/challenge-shell)
+- [x] [Build Your Own DNS Server](https://codingchallenges.fyi/challenges/challenge-dns)
+- [ ] [Build Your Own Chat Server](https://codingchallenges.fyi/challenges/challenge-chat)
+- [x] [Build Your Own Trace Route Tool](https://codingchallenges.fyi/challenges/challenge-traceroute)

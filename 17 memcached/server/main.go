@@ -74,6 +74,7 @@ func handleConnection(conn net.Conn, store *store.HashTable) {
 	parser := commandsparser.NewParser()
 
 	for {
+		fmt.Printf("Waiting for command\n")
 		// Set a read deadline to prevent hanging connections
 		if err := conn.SetReadDeadline(time.Now().Add(5 * time.Minute)); err != nil {
 			log.Printf("Error setting read deadline: %v", err)
