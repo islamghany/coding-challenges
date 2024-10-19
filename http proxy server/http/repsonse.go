@@ -1,8 +1,12 @@
 package http
 
 import (
+	"bufio"
 	"fmt"
+	"io"
 	"net"
+	"strconv"
+	"strings"
 )
 
 var StatusReasons = map[int]string{
@@ -69,8 +73,55 @@ func NewResponse(cfg *ResponseConfig) *Response {
 	return response
 }
 
-// func ParseIncomingResponse
+func ParseIncomingResponse(conn net.Conn) (*Response, error) {
+	response := NewResponse(nil)
+	reader := bufio.NewReader(conn)
 
+	// Parse the status line (e.g., HTTP/1.1 200 OK)
+	statusLine, err := reader.ReadString('\n')
+	if err != nil {
+		return nil, err
+	}
+	parts := strings.SplitN(strings.TrimSpace(statusLine), " ", 3)
+	if len(parts) < 3 {
+		return nil, fmt.Errorf("invalid response status line")
+	}
+	response.Protocol = parts[0]
+	response.Status, _ = strconv.Atoi(parts[1])
+	response.Reason = parts[2]
+
+	// Parse headers
+	for {
+		line, err := reader.ReadString('\n')
+		if err != nil {
+			return nil, err
+		}
+		line = strings.TrimSpace(line)
+		if line == "" {
+			break
+		}
+		parts := strings.SplitN(line, ":", 2)
+		if len(parts) == 2 {
+			response.SetHeader(strings.TrimSpace(parts[0]), strings.TrimSpace(parts[1]))
+		}
+	}
+
+	// Read body (if Content-Length is present)
+	if contentLengthStr, ok := response.Headers["Content-Length"]; ok {
+		contentLength, err := strconv.Atoi(contentLengthStr)
+		if err != nil {
+			return nil, err
+		}
+		body := make([]byte, contentLength)
+		_, err = io.ReadFull(reader, body)
+		if err != nil {
+			return nil, err
+		}
+		response.Body = body
+	}
+
+	return response, nil
+}
 func WriteResponseToConn(conn net.Conn, response *Response) error {
 	// Write the response line
 	responseLine := fmt.Sprintf("%s %d %s\r\n", response.Protocol, response.Status, response.Reason)
