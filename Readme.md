@@ -22,3 +22,4 @@ this repository contains my solutions to the coding challenges from [codingchall
 - [ ] [Build Your Own Chat Server](https://codingchallenges.fyi/challenges/challenge-chat)
 - [x] [Build Your Own Trace Route Tool](https://codingchallenges.fyi/challenges/challenge-traceroute)
 - [x] [Build Your Own Rate Limiter](https://codingchallenges.fyi/challenges/challenge-rate-limiter)
+- [x] [Build Your Own Proxy Server](https://codingchallenges.fyi/challenges/challenge-forward-proxy)
