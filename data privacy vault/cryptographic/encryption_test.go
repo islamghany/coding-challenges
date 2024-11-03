@@ -84,3 +84,23 @@ func TestEncryptAESGCMWithBase64(t *testing.T) {
 	}
 
 }
+
+func TestRandom(t *testing.T) {
+	randomBytes, err := GenerateRandomBytes(32)
+	if err != nil {
+		t.Fatalf("Failed to generate random bytes: %v", err)
+	}
+
+	if len(randomBytes) != 32 {
+		t.Fatalf("Invalid random bytes length. Got: %d, Want: 32", len(randomBytes))
+	}
+
+	randomString, err := GenerateRandomString(14)
+	if err != nil {
+		t.Fatalf("Failed to generate random string: %v", err)
+	}
+
+	if len(randomString) != 32 {
+		t.Fatalf("Invalid random string length. Got: %d, Want: 32", len(randomString))
+	}
+}
