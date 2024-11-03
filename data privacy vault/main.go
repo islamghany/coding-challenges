@@ -28,6 +28,7 @@ func main() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /tokenize", handler.HandleTokenize)
 	mux.HandleFunc("POST /detokenize", handler.HandleDetokenize)
+	mux.HandleFunc("POST /api-key", handler.APIKeyIssuer)
 
 	http.ListenAndServe(":8080", mux)
 }

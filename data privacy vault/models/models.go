@@ -33,3 +33,8 @@ type APIKey struct {
 	Permissions  []string `json:"permissions"`
 	APIKey       string   `json:"api_key"`
 }
+
+type APIKeyRequest struct {
+	Organization string   `json:"organization"`
+	Permissions  []string `json:"permissions"`
+}

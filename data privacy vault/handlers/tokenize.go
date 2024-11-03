@@ -35,6 +35,12 @@ func encode(v interface{}) ([]byte, error) {
 	return json.Marshal(v)
 }
 
+func writeRepsonse(w http.ResponseWriter, v interface{}, code int) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(code)
+	json.NewEncoder(w).Encode(v)
+}
+
 func (h *Handler) HandleTokenize(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	var tokenResp models.TokenizeRequest
@@ -42,6 +48,13 @@ func (h *Handler) HandleTokenize(w http.ResponseWriter, r *http.Request) {
 	err := decode(r, &tokenResp)
 	if err != nil {
 		writeError(w, "Invalid request payload", http.StatusBadRequest)
+		return
+	}
+	apikey := r.Header.Get("X-API-KEY")
+	secretKey := r.Header.Get("X-SECRET-KEY")
+	permissions := []string{"tokenize"}
+	apiKeyData, ok := h.APIKeyVerifier(w, apikey, secretKey, permissions)
+	if !ok {
 		return
 	}
 
@@ -62,9 +75,10 @@ func (h *Handler) HandleTokenize(w http.ResponseWriter, r *http.Request) {
 
 		tokenResp.Data[k] = tokenID
 		h.tokens[tokenID] = models.TokenizedField{
-			Cipher: cipherText,
-			Token:  tokenID,
-			ID:     tokenResp.ID,
+			Cipher:       cipherText,
+			Token:        tokenID,
+			ID:           tokenResp.ID,
+			Organization: apiKeyData.Organization,
 		}
 
 		tokenizedString, err := encode(h.tokens[tokenID])
@@ -79,9 +93,8 @@ func (h *Handler) HandleTokenize(w http.ResponseWriter, r *http.Request) {
 		}
 
 	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(tokenResp)
+
+	writeRepsonse(w, tokenResp, http.StatusCreated)
 
 }
 
@@ -91,6 +104,14 @@ func (h *Handler) HandleDetokenize(w http.ResponseWriter, r *http.Request) {
 	err := decode(r, &detokenizeReq)
 	if err != nil {
 		writeError(w, "Invalid request payload", http.StatusBadRequest)
+		return
+	}
+
+	apikey := r.Header.Get("X-API-KEY")
+	secretKey := r.Header.Get("X-SECRET-KEY")
+	permissions := []string{"detokenize"}
+	_, ok := h.APIKeyVerifier(w, apikey, secretKey, permissions)
+	if !ok {
 		return
 	}
 
@@ -112,11 +133,7 @@ func (h *Handler) HandleDetokenize(w http.ResponseWriter, r *http.Request) {
 
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(detokenize); err != nil {
-		log.Printf("Failed to encode detokenize response: %v", err)
-		http.Error(w, "Failed to process response", http.StatusInternalServerError)
-	}
+	writeRepsonse(w, detokenize, http.StatusOK)
 
 }
 
