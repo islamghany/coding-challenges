@@ -14,21 +14,21 @@ func TestNewBloomFilterConfig(t *testing.T) {
 	expectedM := int(-float64(n) * math.Log(p) / math.Pow(math.Log(2), 2))
 	expectedK := int(float64(expectedM) / float64(n) * math.Log(2))
 
-	if config.m != expectedM {
-		t.Errorf("Expected m to be %d, got %d", expectedM, config.m)
+	if config.M != expectedM {
+		t.Errorf("Expected m to be %d, got %d", expectedM, config.M)
 	}
-	if config.k != expectedK {
-		t.Errorf("Expected k to be %d, got %d", expectedK, config.k)
+	if config.K != expectedK {
+		t.Errorf("Expected k to be %d, got %d", expectedK, config.K)
 	}
-	if len(config.hashFunctionsArray) != expectedK {
-		t.Errorf("Expected hashFunctionsArray length to be %d, got %d", expectedK, len(config.hashFunctionsArray))
+	if len(config.HashFunctionsArray) != expectedK {
+		t.Errorf("Expected HashFunctionsArray length to be %d, got %d", expectedK, len(config.HashFunctionsArray))
 	}
 }
 
 func TestBloomFilter_AddAndContains(t *testing.T) {
 	n := 104335
 	p := 0.0001
-	bf := NewBloomFilter(n, p, "")
+	bf := NewBloomFilter(n, p)
 
 	// Test words
 	word1 := []byte("apple")
@@ -56,7 +56,7 @@ func TestBloomFilter_AddAndContains(t *testing.T) {
 func TestBloomFilter_FalsePositiveRate(t *testing.T) {
 	n := 104335
 	p := 0.0001
-	bf := NewBloomFilter(n, p, "")
+	bf := NewBloomFilter(n, p)
 
 	// Add a small set of words
 	words := [][]byte{

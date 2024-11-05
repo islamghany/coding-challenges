@@ -1,10 +1,11 @@
 package bloomfilter
 
 import (
+	"encoding/json"
+	"fmt"
 	"math"
-	"math/rand"
+	"os"
 	"spellchecker/hashing"
-	"time"
 )
 
 /*
@@ -38,12 +39,14 @@ k = (2000111 / 104335) * 0.6931 ≈ 13 hash functions
 
 */
 
+var filePath = "bloom_filter.json"
+
 type bloomFilterConfig struct {
-	n                  int     // number of elements in the set
-	p                  float64 // false positive probability
-	k                  int     // number of hash functions
-	m                  int     // size of the bit array
-	hashFunctionsArray []int   // array of k items, each item is 1 for FNV-1a and 2 for MurmurHash
+	N                  int     // number of elements in the set
+	P                  float64 // false positive probability
+	K                  int     // number of hash functions
+	M                  int     // size of the bit array
+	HashFunctionsArray []int   // array of k items, each item is 1 for FNV-1a and 2 for MurmurHash
 }
 
 func newBloomFilterConfig(n int, p float64) *bloomFilterConfig {
@@ -52,16 +55,19 @@ func newBloomFilterConfig(n int, p float64) *bloomFilterConfig {
 	k := m / float64(n) * math.Log(2)
 	hashFunctionsArray := make([]int, int(k))
 	for i := 0; i < int(k); i++ {
-		rand.NewSource(time.Now().UnixNano())
-		hashFunctionsArray[i] = rand.Intn(2) + 1
+		val := 1
+		if i%2 == 0 {
+			val = 2
+		}
+		hashFunctionsArray[i] = val
 	}
 
 	return &bloomFilterConfig{
-		n:                  n,
-		p:                  p,
-		k:                  int(k),
-		m:                  int(m),
-		hashFunctionsArray: hashFunctionsArray, // Initialize the hash value to the seed value
+		N:                  n,
+		P:                  p,
+		K:                  int(k),
+		M:                  int(m),
+		HashFunctionsArray: hashFunctionsArray, // Initialize the hash value to the seed value
 	}
 }
 
@@ -69,48 +75,100 @@ func newBloomFilterConfig(n int, p float64) *bloomFilterConfig {
 // by default it will use a combination of repeated hash functions from the FNV-1a and MurmurHash algorithms
 // with different seeds to generate multiple hash values for each element.
 type BloomFilter struct {
-	cfg      *bloomFilterConfig
-	bitArray []bool
-	file     string // file path to save the bloom filter
+	Cfg *bloomFilterConfig `json:"config"`
+	// here I choose to make BitArray to be a byte array instead of a bool array to save space
+	// each byte will represent 8 bits in the bit array
+	BitArray []byte `json:"bitArray"`
 }
 
-func NewBloomFilter(n int, p float64, filepath string) *BloomFilter {
-	cfg := newBloomFilterConfig(n, p)
+func NewBloomFilter(n int, p float64) *BloomFilter {
+	Cfg := newBloomFilterConfig(n, p)
+	bitsLength := int(math.Ceil(float64(Cfg.M) / 8))
 	return &BloomFilter{
-		cfg:      cfg,
-		bitArray: make([]bool, cfg.m),
+		Cfg:      Cfg,
+		BitArray: make([]byte, bitsLength),
 	}
+}
+
+// getHashIndexes returns the byte and bit indexes for a given hash value
+func (bf *BloomFilter) getHashIndexes(hash uint32) (int, int) {
+	// Modulo with the bit length to ensure we stay within bounds of the bit array
+	bitPos := int(hash % uint32(bf.Cfg.M))
+	byteIndex := bitPos / 8
+	bitIndex := bitPos % 8
+	return byteIndex, bitIndex
 }
 
 // Add adds an element to the bloom filter by hashing the data with the hash functions
 func (bf *BloomFilter) Add(data []byte) {
-	for i := 0; i < bf.cfg.k; i++ {
+	for i := 0; i < bf.Cfg.K; i++ {
 		hash := uint32(0)
-		if bf.cfg.hashFunctionsArray[i] == 1 {
+		if bf.Cfg.HashFunctionsArray[i] == 1 {
 			hash = uint32(hashing.FNV1AHashWithSeed(data, uint32(i), 32))
 		} else {
 			hash = hashing.MurmurHash32Bit(data, uint32(i))
 		}
-		index := int(hash % uint32(bf.cfg.m))
 
-		bf.bitArray[index] = true
+		byteIndex, bitIndex := bf.getHashIndexes(hash)
+		bf.BitArray[byteIndex] |= 1 << bitIndex
 	}
 }
 
 // Contains checks if an element is in the bloom filter by hashing the data with the hash functions
 func (bf *BloomFilter) Contains(data []byte) bool {
-	for i := 0; i < bf.cfg.k; i++ {
+	for i := 0; i < bf.Cfg.K; i++ {
 		hash := uint32(0)
-		if bf.cfg.hashFunctionsArray[i] == 1 {
+		if bf.Cfg.HashFunctionsArray[i] == 1 {
 			hash = uint32(hashing.FNV1AHashWithSeed(data, uint32(i), 32))
 		} else {
 			hash = hashing.MurmurHash32Bit(data, uint32(i))
 		}
-		index := int(hash % uint32(bf.cfg.m))
 
-		if !bf.bitArray[index] {
+		byteIndex, bitIndex := bf.getHashIndexes(hash)
+		if bf.BitArray[byteIndex]&(1<<bitIndex) == 0 {
 			return false
 		}
+
 	}
 	return true
+}
+
+// Save saves the bloom filter to a file
+func (bf *BloomFilter) Save() error {
+	// try open the file if it does not exist create it
+	file, err := os.OpenFile(filePath, os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		return fmt.Errorf("could not open file: %w", err)
+	}
+	defer file.Close()
+	// Write the config to the file
+
+	return json.NewEncoder(file).Encode(bf)
+
+}
+
+// Load loads the bloom filter from a file
+func (bf *BloomFilter) Load() error {
+	// try open the file if it does not exist create it
+	file, err := os.OpenFile(filePath, os.O_RDONLY, 0644)
+	if err != nil {
+		return fmt.Errorf("could not open file: %w", err)
+	}
+	defer file.Close()
+
+	err = json.NewDecoder(file).Decode(bf)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// Print prints the bloom filter
+func (bf *BloomFilter) Print() {
+	// fmt.Printf("Number of elements: %d\n", bf.Cfg.N)
+	// fmt.Printf("False positive probability: %f\n", bf.Cfg.P)
+	// fmt.Printf("Number of hash functions: %d\n", bf.Cfg.K)
+	fmt.Printf("Size of the bit array: %d\n", bf.Cfg.M)
+	fmt.Printf("Bit array: %v\n", bf.BitArray)
 }

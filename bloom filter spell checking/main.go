@@ -6,7 +6,8 @@ import (
 )
 
 func main() {
-	bf := bloomfilter.NewBloomFilter(10, 0.0001, "bloomfilter.bin")
+	bf := bloomfilter.NewBloomFilter(10, 0.0001)
+	bf.Load()
 	bf.Add([]byte("hello"))
 	bf.Add([]byte("world"))
 	bf.Add([]byte("good"))
@@ -16,5 +17,10 @@ func main() {
 
 	fmt.Println(bf.Contains([]byte("hello")))
 	fmt.Println(bf.Contains([]byte("world")))
-	fmt.Println(bf.Contains([]byte("goo2d")))
+	fmt.Println(bf.Contains([]byte("goo22d")))
+	fmt.Println(bf.Contains([]byte("morning")))
+	fmt.Println(bf.Contains([]byte("even2ing")))
+	fmt.Println(bf.Contains([]byte("night")))
+
+	bf.Save()
 }
