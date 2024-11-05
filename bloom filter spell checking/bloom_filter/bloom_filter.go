@@ -163,12 +163,3 @@ func (bf *BloomFilter) Load() error {
 
 	return nil
 }
-
-// Print prints the bloom filter
-func (bf *BloomFilter) Print() {
-	// fmt.Printf("Number of elements: %d\n", bf.Cfg.N)
-	// fmt.Printf("False positive probability: %f\n", bf.Cfg.P)
-	// fmt.Printf("Number of hash functions: %d\n", bf.Cfg.K)
-	fmt.Printf("Size of the bit array: %d\n", bf.Cfg.M)
-	fmt.Printf("Bit array: %v\n", bf.BitArray)
-}
