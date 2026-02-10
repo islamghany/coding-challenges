@@ -16,6 +16,10 @@ type TreeEntry struct {
 	Mode string
 }
 
+// Snapshotting a Directory to a Tree Object
+// Walks through your directory and creates:
+// - Blob objects for each file
+// - Tree objects for each directory
 func (c *Command) WriteTree() error {
 
 	// 1. get current directory
@@ -25,7 +29,7 @@ func (c *Command) WriteTree() error {
 	}
 
 	// 2. tree-walk the directory
-	treeHash, err := treeWalk(dir)
+	treeHash, err := generateTreeHash(dir)
 	if err != nil {
 		return fmt.Errorf("failed to tree-walk the directory: %w", err)
 	}
@@ -34,7 +38,7 @@ func (c *Command) WriteTree() error {
 	return nil
 }
 
-func treeWalk(path string) (string, error) {
+func generateTreeHash(path string) (string, error) {
 	files, _ := os.ReadDir(path)
 
 	// 1. Collect entries (each entry is []byte)
@@ -46,7 +50,7 @@ func treeWalk(path string) (string, error) {
 		}
 		if file.IsDir() {
 			// Recursively get subtree hash
-			subTreeHash, _ := treeWalk(filepath.Join(path, file.Name()))
+			subTreeHash, _ := generateTreeHash(filepath.Join(path, file.Name()))
 			hashBytes, _ := hex.DecodeString(subTreeHash)
 			entries = append(entries, TreeEntry{
 				Name: file.Name(),
@@ -69,6 +73,12 @@ func treeWalk(path string) (string, error) {
 	sort.Slice(entries, func(i, j int) bool {
 		return entries[i].Name < entries[j].Name
 	})
+
+	// Tree object format:
+	// tree <size>\0
+	// <mode> <filename>\0<20-raw-bytes-of-hash>
+	// <mode> <filename>\0<20-raw-bytes-of-hash>
+	// ...
 
 	// 3. Build tree content
 	var content bytes.Buffer
@@ -93,6 +103,40 @@ func treeWalk(path string) (string, error) {
 	return hashStr, nil
 }
 
+// Creates a blob object for a file and writes it to the database.
+// Example:
+// INPUT: File "hello.txt" containing "Hello World\n"
+// Step 1: Read file content
+//
+//	content = "Hello World\n" (12 bytes)
+//
+// Step 2: Create header
+//
+//	→ header = "blob 12\0"
+//	     ^^^^  ^^ ^
+//	     type  │  null byte separator
+//	          size
+//
+// Step 3: Combine header and content
+//
+//	→ object = "blob 12\0Hello World\n" (14 bytes)
+//
+// Step 4: Hash it
+//
+//	→ hash = "8b1a9953c4611296a827abf8c47804d7" (20 bytes)
+//
+// Step 5: Compress and write to .git/objects/
+//
+//	→ writeObject(object, hash)
+//
+// OUTPUT: Blob object stored in .git/objects/ directory
+// │ ├── 8b
+// │ │   └── 1a9953c4611296a827abf8c47804d755620314715d
+// │   └── objects/
+// │       └── 8b
+// │           └── 1a9953c4611296a827abf8c47804d755620314715d
+// │
+// │
 func createAndWriteBlob(path string) (string, error) {
 	content, err := os.ReadFile(path)
 	if err != nil {

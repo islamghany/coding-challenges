@@ -6,6 +6,15 @@ import (
 	"path/filepath"
 )
 
+// Creates the .git directory with the basic structure Git needs.
+// The .git directory contains the following files and directories:
+// - HEAD: a symbolic reference to the current branch
+// - objects: contains the Git objects
+// - refs: contains the Git references
+// - refs/heads: contains the Git branches
+// - refs/tags: contains the Git tags
+// - refs/tags/master: a symbolic reference to the master branch
+// - refs/heads/master: a symbolic reference to the master branch
 func (c *Command) Init() error {
 	pwd, err := os.Getwd()
 	if err != nil {
@@ -28,6 +37,10 @@ func (c *Command) Init() error {
 		return err
 	}
 	defer headFile.Close()
+
+	// HEAD is a symbolic reference - it points to a branch, not directly to a commit. When you commit, Git:
+	// Reads HEAD → "ref: refs/heads/master"
+	// Updates .git/refs/heads/master with the new commit hash
 	_, err = headFile.WriteString("ref: refs/heads/master\n")
 	if err != nil {
 		return fmt.Errorf("failed to write to HEAD file: %w", err)

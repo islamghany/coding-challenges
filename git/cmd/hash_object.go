@@ -42,6 +42,9 @@ func writeObject(object []byte, hashStr string) error {
 	return os.WriteFile(path, compressed.Bytes(), 0644)
 }
 
+// Takes a file's content and stores it as a blob object in the database.
+// The object is stored in the .git/objects directory.
+// The -w flag is used to write the object to the database.
 func (c *Command) HashObject(options HashObjectOptions) error {
 	// 1. read the file content
 	content, err := os.ReadFile(options.Filepath)

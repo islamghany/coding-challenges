@@ -17,6 +17,7 @@ type CatFileOptions struct {
 	Size   bool
 }
 
+// Reads an object from the database and displays its type, size, or content.
 func (c *Command) CatFile(options CatFileOptions) error {
 	if len(options.Hash) < 40 {
 		return fmt.Errorf("invalid hash: %s", options.Hash)
