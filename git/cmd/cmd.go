@@ -132,6 +132,19 @@ func (c *Command) Run(args []string) error {
 			Tree:    treeContent,
 			Parent:  parentContent,
 		})
+	case "ls-tree":
+		if len(args) < 2 {
+			return fmt.Errorf("Usage: git ls-tree <tree> <name-only>")
+		}
+		options := LsTreeOptions{}
+		for _, arg := range args[1:] {
+			if arg == "--name-only" {
+				options.NameOnly = true
+			} else {
+				options.Tree = arg
+			}
+		}
+		return c.LsTree(options)
 	default:
 		return fmt.Errorf("Unknown command: %s\n", cmd)
 	}

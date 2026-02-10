@@ -16,6 +16,12 @@ type TreeEntry struct {
 	Mode string
 }
 
+// Tree object format:
+// tree <size>\0
+// <mode> <filename>\0<20-raw-bytes-of-hash>
+// <mode> <filename>\0<20-raw-bytes-of-hash>
+// ...
+
 // Snapshotting a Directory to a Tree Object
 // Walks through your directory and creates:
 // - Blob objects for each file
@@ -73,12 +79,6 @@ func generateTreeHash(path string) (string, error) {
 	sort.Slice(entries, func(i, j int) bool {
 		return entries[i].Name < entries[j].Name
 	})
-
-	// Tree object format:
-	// tree <size>\0
-	// <mode> <filename>\0<20-raw-bytes-of-hash>
-	// <mode> <filename>\0<20-raw-bytes-of-hash>
-	// ...
 
 	// 3. Build tree content
 	var content bytes.Buffer
