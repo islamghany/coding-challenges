@@ -1,3 +1,12 @@
 {
     "editor.fontFamily": "'MonoLisa Variable', MonoLisa, 'Dank Mono', 'Droid Sans Mono',  'monospace', monospace",
+    "editor.fontSize": 14,
+    "go.goroot": "/opt/homebrew/Cellar/go/1.24.2/libexec",
+    "go.gopath": "/Users/ghany/go",
+    "go.alternateTools": {
+        "go": "/opt/homebrew/bin/go"
+    },
+    "terminal.integrated.env.osx": {
+        "PATH": "/opt/homebrew/bin:${env:PATH}"
+    }
 }
