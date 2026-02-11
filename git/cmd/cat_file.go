@@ -1,62 +1,49 @@
 package cmd
 
 import (
-	"bytes"
-	"compress/zlib"
 	"fmt"
-	"io"
-	"os"
-	"path/filepath"
 	"strings"
 )
 
+// CatFileOptions contains options for the cat-file command
 type CatFileOptions struct {
 	Hash   string
-	Type   bool
-	Pretty bool
-	Size   bool
+	Type   bool // -t: show object type
+	Pretty bool // -p: pretty-print content
+	Size   bool // -s: show object size
 }
 
-// Reads an object from the database and displays its type, size, or content.
+// CatFile reads an object from the database and displays its type, size, or content.
 func (c *Command) CatFile(options CatFileOptions) error {
-	if len(options.Hash) < 40 {
-		return fmt.Errorf("invalid hash: %s", options.Hash)
+	data, err := readObject(options.Hash)
+	if err != nil {
+		return err
 	}
 
-	path := filepath.Join(".git", "objects", options.Hash[0:2], options.Hash[2:])
-	compressedContent, err := os.ReadFile(path)
-	if err != nil {
-		return fmt.Errorf("failed to read file: %w", err)
-	}
-	var decompressed bytes.Buffer
-	r, err := zlib.NewReader(bytes.NewReader(compressedContent))
-	if err != nil {
-		return fmt.Errorf("failed to create zlib reader: %w", err)
-	}
-	defer r.Close()
-	_, err = io.Copy(&decompressed, r)
-	if err != nil {
-		return fmt.Errorf("failed to decompress content: %w", err)
-	}
-
-	content := decompressed.String()
-
-	header := strings.SplitN(content, "\x00", 2)
-	if len(header) != 2 {
+	// Parse header: "type size\0content"
+	content := string(data)
+	parts := strings.SplitN(content, "\x00", 2)
+	if len(parts) != 2 {
 		return fmt.Errorf("invalid object format")
 	}
-	headerParts := strings.Split(header[0], " ")
-	typ := headerParts[0]
-	sze := headerParts[1]
+
+	headerParts := strings.Split(parts[0], " ")
+	if len(headerParts) != 2 {
+		return fmt.Errorf("invalid object header")
+	}
+
+	objType := headerParts[0]
+	objSize := headerParts[1]
 
 	if options.Type {
-		fmt.Println(typ)
-	}
-	if options.Pretty {
-		fmt.Println(header[1])
+		fmt.Println(objType)
 	}
 	if options.Size {
-		fmt.Println(sze)
+		fmt.Println(objSize)
 	}
+	if options.Pretty {
+		fmt.Println(parts[1])
+	}
+
 	return nil
 }

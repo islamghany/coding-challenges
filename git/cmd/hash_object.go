@@ -1,67 +1,39 @@
 package cmd
 
 import (
-	"bytes"
-	"compress/zlib"
-	"crypto/sha1"
-	"encoding/hex"
 	"fmt"
 	"os"
-	"path/filepath"
 )
 
+// HashObjectOptions contains options for the hash-object command
 type HashObjectOptions struct {
 	Filepath string
 	Write    bool
 }
 
+// buildBlobObject creates a blob object from content and returns the object bytes and hash
 func buildBlobObject(content []byte) ([]byte, string) {
-	// 2. create the header
-	header := fmt.Sprintf("blob %d\000", len(content))
-
-	// 3. combine the header and the content
-	store := append([]byte(header), content...)
-
-	// 4. compute SHA-1 hash
-
-	hash := sha1.Sum(store)
-	hashStr := hex.EncodeToString(hash[:])
-	return store, hashStr
-
+	header := fmt.Sprintf("blob %d\x00", len(content))
+	object := append([]byte(header), content...)
+	return object, hashObject(object)
 }
 
-func writeObject(object []byte, hashStr string) error {
-	var compressed bytes.Buffer
-	w := zlib.NewWriter(&compressed)
-	w.Write(object)
-	w.Close()
-
-	dir := filepath.Join(".git", "objects", hashStr[0:2])
-	os.MkdirAll(dir, 0755)
-	path := filepath.Join(dir, hashStr[2:])
-	return os.WriteFile(path, compressed.Bytes(), 0644)
-}
-
-// Takes a file's content and stores it as a blob object in the database.
-// The object is stored in the .git/objects directory.
-// The -w flag is used to write the object to the database.
+// HashObject takes a file's content and stores it as a blob object.
+// The -w flag writes the object to .git/objects/
 func (c *Command) HashObject(options HashObjectOptions) error {
-	// 1. read the file content
 	content, err := os.ReadFile(options.Filepath)
 	if err != nil {
 		return fmt.Errorf("failed to read file: %w", err)
 	}
 
-	store, hashStr := buildBlobObject(content)
-	fmt.Println(hashStr)
-	// 5. write the object to the database
-	if options.Write {
+	object, hash := buildBlobObject(content)
+	fmt.Println(hash)
 
-		err = writeObject(store, hashStr)
-		if err != nil {
+	if options.Write {
+		if err := writeObject(object, hash); err != nil {
 			return fmt.Errorf("failed to write object: %w", err)
 		}
-		fmt.Printf("Written object to %s\n", filepath.Join(".git", "objects", hashStr[0:2], hashStr[2:]))
 	}
+
 	return nil
 }

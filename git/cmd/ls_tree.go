@@ -2,77 +2,74 @@ package cmd
 
 import (
 	"bytes"
-	"compress/zlib"
 	"encoding/hex"
 	"fmt"
-	"io"
-	"os"
-	"path/filepath"
 )
 
+// LsTreeOptions contains options for the ls-tree command
 type LsTreeOptions struct {
 	Tree     string
-	NameOnly bool
+	NameOnly bool // --name-only: show only filenames
 }
 
+// LsTree lists the contents of a tree object.
 func (c *Command) LsTree(options LsTreeOptions) error {
-	// 1. validate the options
 	if options.Tree == "" {
-		return fmt.Errorf("tree is required")
+		return fmt.Errorf("tree hash is required")
 	}
 
-	// 2. read the tree object
-	treeObject, err := os.ReadFile(filepath.Join(".git", "objects", options.Tree[0:2], options.Tree[2:]))
+	data, err := readObject(options.Tree)
 	if err != nil {
-		return fmt.Errorf("failed to read tree object: %w", err)
+		return err
 	}
 
-	// 3. Decompress the tree object
-	var decompressed bytes.Buffer
-	r, err := zlib.NewReader(bytes.NewReader(treeObject))
-	if err != nil {
-		return fmt.Errorf("failed to create zlib reader: %w", err)
-	}
-	defer r.Close()
-	_, err = io.Copy(&decompressed, r)
-	if err != nil {
-		return fmt.Errorf("failed to decompress tree object: %w", err)
-	}
-	data := decompressed.Bytes() // Work with []byte!
-
-	// 4. Parse the tree object
+	// Skip header: find first null byte
 	nullIdx := bytes.IndexByte(data, 0)
-	// header := string(data[:nullIdx]) // "tree 74"
-	content := data[nullIdx+1:] // Everything after the null (binary!)
-	// 2. Parse entries from content
+	if nullIdx == -1 {
+		return fmt.Errorf("invalid tree object: no header")
+	}
+	content := data[nullIdx+1:]
+
+	// Parse entries: "<mode> <name>\0<20-byte-hash>"
 	for len(content) > 0 {
 		// Find space (between mode and name)
 		spaceIdx := bytes.IndexByte(content, ' ')
+		if spaceIdx == -1 {
+			return fmt.Errorf("invalid tree entry: no mode")
+		}
 		mode := string(content[:spaceIdx])
 
 		// Find null (between name and hash)
 		nullIdx := bytes.IndexByte(content[spaceIdx+1:], 0)
+		if nullIdx == -1 {
+			return fmt.Errorf("invalid tree entry: no name terminator")
+		}
 		name := string(content[spaceIdx+1 : spaceIdx+1+nullIdx])
 
-		// Next 20 bytes ARE the hash (raw binary!)
+		// Next 20 bytes are the raw hash
 		hashStart := spaceIdx + 1 + nullIdx + 1
-		hashBytes := content[hashStart : hashStart+20]
-		hashStr := hex.EncodeToString(hashBytes) // Convert to readable hex
+		if hashStart+RawHashLen > len(content) {
+			return fmt.Errorf("invalid tree entry: truncated hash")
+		}
+		hashBytes := content[hashStart : hashStart+RawHashLen]
+		hashStr := hex.EncodeToString(hashBytes)
 
 		// Move to next entry
-		content = content[hashStart+20:]
+		content = content[hashStart+RawHashLen:]
 
-		// Now print!
+		// Determine object type from mode
 		objType := "blob"
 		if mode == "40000" {
 			objType = "tree"
 		}
 
+		// Print output
 		if options.NameOnly {
 			fmt.Println(name)
 		} else {
 			fmt.Printf("%06s %s %s\t%s\n", mode, objType, hashStr, name)
 		}
 	}
+
 	return nil
 }

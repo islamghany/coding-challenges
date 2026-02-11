@@ -2,79 +2,120 @@ package cmd
 
 import (
 	"bytes"
-	"crypto/sha1"
-	"encoding/hex"
 	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
 	"time"
 )
 
+// CommitTreeOptions contains options for the commit-tree command
 type CommitTreeOptions struct {
+	Tree    string // hash of the tree to commit
+	Parent  string // hash of the parent commit (optional)
 	Message string // commit message
-	Parent  string // hash of the parent commit (optional, for non-initial commits)
-	Tree    string // hash of the tree
 }
 
-// Commit object format:
-
-// commit <size>\0
-// tree <tree-hash>
-// parent <parent-hash>        ← optional (not present in first commit)
-// author <name> <email> <timestamp> <timezone>
-// committer <name> <email> <timestamp> <timezone>
-
-// <message>
-
-// Wraps a tree with metadata (author, date, message) to create a commit.
+// CommitTree creates a commit object wrapping a tree with metadata.
+// Commit format:
+//
+//	commit <size>\0
+//	tree <tree-hash>
+//	parent <parent-hash>        (optional)
+//	author <name> <email> <timestamp> <timezone>
+//	committer <name> <email> <timestamp> <timezone>
+//
+//	<message>
 func (c *Command) CommitTree(options CommitTreeOptions) error {
-	// 1. validate the options
-	if options.Message == "" {
-		return fmt.Errorf("message is required")
-	}
 	if options.Tree == "" {
-		return fmt.Errorf("tree is required")
+		return fmt.Errorf("tree hash is required")
+	}
+	if options.Message == "" {
+		return fmt.Errorf("commit message is required")
 	}
 
-	// 2. build the commit content
+	// Build commit content
 	var content bytes.Buffer
+
 	content.WriteString(fmt.Sprintf("tree %s\n", options.Tree))
 
-	// Parent (optional, for non-initial commits)
 	if options.Parent != "" {
 		content.WriteString(fmt.Sprintf("parent %s\n", options.Parent))
 	}
-	// Author & Committer
-	timestamp := time.Now().Unix()
-	timezone := "+0000" // or calculate from time.Now().Zone()
-	name := os.Getenv("GIT_AUTHOR_NAME")
-	email := os.Getenv("GIT_AUTHOR_EMAIL")
-	if name == "" {
-		name = "John Doe"
-	}
-	if email == "" {
-		email = "john.doe@example.com"
-	}
-	author := fmt.Sprintf("%s <%s> %d %s", name, email, timestamp, timezone)
 
+	// Author and committer info
+	author := buildAuthorLine()
 	content.WriteString(fmt.Sprintf("author %s\n", author))
 	content.WriteString(fmt.Sprintf("committer %s\n", author))
 
 	// Blank line + message
 	content.WriteString(fmt.Sprintf("\n%s\n", options.Message))
 
-	// 3. create the commit object
+	// Create commit object with header
 	header := fmt.Sprintf("commit %d\x00", content.Len())
 	object := append([]byte(header), content.Bytes()...)
 
-	// 4. hash, compress and write to the database
-	// Line 65 - Replace with:
-	hash := sha1.Sum(object)
-	hashStr := hex.EncodeToString(hash[:])
-
-	err := writeObject(object, hashStr)
-	if err != nil {
-		return fmt.Errorf("failed to write object: %w", err)
+	// Hash and write
+	hash := hashObject(object)
+	if err := writeObject(object, hash); err != nil {
+		return fmt.Errorf("failed to write commit: %w", err)
 	}
-	fmt.Println(hashStr)
+
+	fmt.Println(hash)
+
+	// Update HEAD's ref
+	if err := updateHeadRef(hash); err != nil {
+		// Non-fatal: commit was created, just couldn't update ref
+		fmt.Fprintf(os.Stderr, "warning: could not update HEAD: %v\n", err)
+	}
+
+	return nil
+}
+
+// buildAuthorLine creates the author/committer line
+func buildAuthorLine() string {
+	name := os.Getenv("GIT_AUTHOR_NAME")
+	if name == "" {
+		name = "John Doe"
+	}
+
+	email := os.Getenv("GIT_AUTHOR_EMAIL")
+	if email == "" {
+		email = "john.doe@example.com"
+	}
+
+	timestamp := time.Now().Unix()
+	timezone := "+0000"
+
+	return fmt.Sprintf("%s <%s> %d %s", name, email, timestamp, timezone)
+}
+
+// updateHeadRef updates the ref that HEAD points to
+func updateHeadRef(commitHash string) error {
+	headContent, err := os.ReadFile(filepath.Join(GitDir, "HEAD"))
+	if err != nil {
+		return fmt.Errorf("failed to read HEAD: %w", err)
+	}
+
+	headStr := strings.TrimSpace(string(headContent))
+
+	if !strings.HasPrefix(headStr, "ref: ") {
+		// Detached HEAD - don't update
+		return nil
+	}
+
+	// Update the branch ref
+	refPath := strings.TrimPrefix(headStr, "ref: ")
+	refFile := filepath.Join(GitDir, refPath)
+
+	// Create parent directories if needed
+	if err := os.MkdirAll(filepath.Dir(refFile), DirPerm); err != nil {
+		return fmt.Errorf("failed to create ref directory: %w", err)
+	}
+
+	if err := os.WriteFile(refFile, []byte(commitHash+"\n"), FilePerm); err != nil {
+		return fmt.Errorf("failed to write ref: %w", err)
+	}
+
 	return nil
 }

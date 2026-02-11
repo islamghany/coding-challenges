@@ -1,23 +1,16 @@
 package main
 
 import (
-	"flag"
 	"fmt"
 	"mygit/cmd"
 	"os"
 )
 
 func main() {
-
-	flag.Parse()
-
-	args := flag.Args()
-
 	cmder := cmd.NewCommand()
 
-	err := cmder.Run(args)
-	if err != nil {
-		fmt.Println(err)
+	if err := cmder.Run(os.Args[1:]); err != nil {
+		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 }

@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"bytes"
-	"crypto/sha1"
 	"encoding/hex"
 	"fmt"
 	"os"
@@ -10,145 +9,123 @@ import (
 	"sort"
 )
 
+// TreeEntry represents a single entry in a tree object
 type TreeEntry struct {
+	Mode string // "100644" for files, "40000" for directories
 	Name string
-	Hash []byte
-	Mode string
+	Hash []byte // 20 raw bytes
 }
 
-// Tree object format:
-// tree <size>\0
-// <mode> <filename>\0<20-raw-bytes-of-hash>
-// <mode> <filename>\0<20-raw-bytes-of-hash>
-// ...
-
-// Snapshotting a Directory to a Tree Object
-// Walks through your directory and creates:
-// - Blob objects for each file
-// - Tree objects for each directory
+// WriteTree snapshots the current directory as a tree object.
+// Creates blob objects for files and tree objects for directories.
 func (c *Command) WriteTree() error {
-
-	// 1. get current directory
 	dir, err := os.Getwd()
 	if err != nil {
 		return fmt.Errorf("failed to get current directory: %w", err)
 	}
 
-	// 2. tree-walk the directory
-	treeHash, err := generateTreeHash(dir)
+	treeHash, err := writeTreeRecursive(dir)
 	if err != nil {
-		return fmt.Errorf("failed to tree-walk the directory: %w", err)
+		return fmt.Errorf("failed to write tree: %w", err)
 	}
-	fmt.Println(treeHash)
 
+	fmt.Println(treeHash)
 	return nil
 }
 
-func generateTreeHash(path string) (string, error) {
-	files, _ := os.ReadDir(path)
+// writeTreeRecursive walks a directory and creates tree/blob objects
+func writeTreeRecursive(dirPath string) (string, error) {
+	entries, err := os.ReadDir(dirPath)
+	if err != nil {
+		return "", fmt.Errorf("failed to read directory %s: %w", dirPath, err)
+	}
 
-	// 1. Collect entries (each entry is []byte)
-	var entries []TreeEntry
+	var treeEntries []TreeEntry
 
-	for _, file := range files {
-		if file.Name() == ".git" {
+	for _, entry := range entries {
+		name := entry.Name()
+
+		// Skip .git directory
+		if name == ".git" {
 			continue
 		}
-		if file.IsDir() {
-			// Recursively get subtree hash
-			subTreeHash, _ := generateTreeHash(filepath.Join(path, file.Name()))
-			hashBytes, _ := hex.DecodeString(subTreeHash)
-			entries = append(entries, TreeEntry{
-				Name: file.Name(),
-				Mode: "40000", // Directory mode
+
+		fullPath := filepath.Join(dirPath, name)
+
+		if entry.IsDir() {
+			// Recurse into subdirectory
+			subTreeHash, err := writeTreeRecursive(fullPath)
+			if err != nil {
+				return "", err
+			}
+
+			hashBytes, err := hex.DecodeString(subTreeHash)
+			if err != nil {
+				return "", fmt.Errorf("failed to decode hash: %w", err)
+			}
+
+			treeEntries = append(treeEntries, TreeEntry{
+				Mode: "40000",
+				Name: name,
 				Hash: hashBytes,
 			})
 		} else {
-			// Hash the file as blob (and write it!)
-			blobHash, _ := createAndWriteBlob(filepath.Join(path, file.Name()))
-			hashBytes, _ := hex.DecodeString(blobHash)
-			entries = append(entries, TreeEntry{
-				Name: file.Name(),
-				Mode: "100644", // Regular file mode
+			// Create blob for file
+			blobHash, err := createBlob(fullPath)
+			if err != nil {
+				return "", err
+			}
+
+			hashBytes, err := hex.DecodeString(blobHash)
+			if err != nil {
+				return "", fmt.Errorf("failed to decode hash: %w", err)
+			}
+
+			treeEntries = append(treeEntries, TreeEntry{
+				Mode: "100644",
+				Name: name,
 				Hash: hashBytes,
 			})
 		}
 	}
 
-	// 2. Sort entries by name
-	sort.Slice(entries, func(i, j int) bool {
-		return entries[i].Name < entries[j].Name
+	// Sort entries by name (Git requirement)
+	sort.Slice(treeEntries, func(i, j int) bool {
+		return treeEntries[i].Name < treeEntries[j].Name
 	})
 
-	// 3. Build tree content
+	// Build tree content: "<mode> <name>\0<20-byte-hash>"
 	var content bytes.Buffer
-	for _, entry := range entries {
+	for _, entry := range treeEntries {
 		content.WriteString(fmt.Sprintf("%s %s\x00", entry.Mode, entry.Name))
-		content.Write(entry.Hash) // 20 raw bytes!
+		content.Write(entry.Hash)
 	}
-	// 4. Create tree object
+
+	// Create tree object with header
 	header := fmt.Sprintf("tree %d\x00", content.Len())
 	object := append([]byte(header), content.Bytes()...)
 
-	// 5. Hash it
-	hash := sha1.Sum(object)
-	hashStr := hex.EncodeToString(hash[:])
-
-	// 6. Compress and write to .git/objects/
-	err := writeObject(object, hashStr)
-	if err != nil {
-		return "", fmt.Errorf("failed to write object: %w", err)
+	// Hash and write
+	hash := hashObject(object)
+	if err := writeObject(object, hash); err != nil {
+		return "", fmt.Errorf("failed to write tree object: %w", err)
 	}
 
-	return hashStr, nil
+	return hash, nil
 }
 
-// Creates a blob object for a file and writes it to the database.
-// Example:
-// INPUT: File "hello.txt" containing "Hello World\n"
-// Step 1: Read file content
-//
-//	content = "Hello World\n" (12 bytes)
-//
-// Step 2: Create header
-//
-//	→ header = "blob 12\0"
-//	     ^^^^  ^^ ^
-//	     type  │  null byte separator
-//	          size
-//
-// Step 3: Combine header and content
-//
-//	→ object = "blob 12\0Hello World\n" (14 bytes)
-//
-// Step 4: Hash it
-//
-//	→ hash = "8b1a9953c4611296a827abf8c47804d7" (20 bytes)
-//
-// Step 5: Compress and write to .git/objects/
-//
-//	→ writeObject(object, hash)
-//
-// OUTPUT: Blob object stored in .git/objects/ directory
-// │ ├── 8b
-// │ │   └── 1a9953c4611296a827abf8c47804d755620314715d
-// │   └── objects/
-// │       └── 8b
-// │           └── 1a9953c4611296a827abf8c47804d755620314715d
-// │
-// │
-func createAndWriteBlob(path string) (string, error) {
-	content, err := os.ReadFile(path)
+// createBlob reads a file and creates a blob object
+func createBlob(filePath string) (string, error) {
+	content, err := os.ReadFile(filePath)
 	if err != nil {
-		return "", fmt.Errorf("failed to read file: %w", err)
+		return "", fmt.Errorf("failed to read file %s: %w", filePath, err)
 	}
 
-	object, hashStr := buildBlobObject(content)
+	object, hash := buildBlobObject(content)
 
-	err = writeObject(object, hashStr)
-	if err != nil {
+	if err := writeObject(object, hash); err != nil {
 		return "", fmt.Errorf("failed to write blob: %w", err)
 	}
 
-	return hashStr, nil
+	return hash, nil
 }
